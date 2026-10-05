@@ -1,0 +1,42 @@
+{
+  "users": {
+    "b41a28aa2ed19441e837a07e27031ffa": {
+      "id": "b41a28aa2ed19441e837a07e27031ffa",
+      "email": "123123@example.com",
+      "passwordHash": "79d84162cee01e91f2fe3013fb6f9038c4c340902bb95dce9ff6009cfaf79f03",
+      "salt": "49c6e1be021c6d62e78dba7ff0f5174b",
+      "createdAt": "2026-10-05T08:42:26.752062Z"
+    },
+    "fb494190974c1b03417778ebd6196d35": {
+      "id": "fb494190974c1b03417778ebd6196d35",
+      "email": "test@example.com",
+      "passwordHash": "8e5c19ea098adeddb682e0d3004d2c0d39a04b31d275d3b20ad388218ca04fa1",
+      "salt": "59560ccd6a4f170cc901473e589da84a",
+      "createdAt": "2026-10-05T08:35:30.8987923Z"
+    }
+  },
+  "files": {
+    "a1f92916dd870db6471b8eb8156ada2b": {
+      "id": "a1f92916dd870db6471b8eb8156ada2b",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "name": "Аннотация 2026-09-23 144807.png",
+      "size": 18515,
+      "contentType": "image/png",
+      "storageKey": "a1f92916dd870db6471b8eb8156ada2b",
+      "createdAt": "2026-10-05T08:42:36.0115805Z"
+    },
+    "b604bfbf25511b82ed724814949fbaa4": {
+      "id": "b604bfbf25511b82ed724814949fbaa4",
+      "userID": "fb494190974c1b03417778ebd6196d35",
+      "name": "Аннотация 2026-09-23 144807.png",
+      "size": 18515,
+      "contentType": "image/png",
+      "storageKey": "b604bfbf25511b82ed724814949fbaa4",
+      "createdAt": "2026-10-05T08:35:38.5688367Z"
+    }
+  },
+  "emailIndex": {
+    "123123@example.com": "b41a28aa2ed19441e837a07e27031ffa",
+    "test@example.com": "fb494190974c1b03417778ebd6196d35"
+  }
+}

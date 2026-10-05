@@ -94,6 +94,12 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Главная страница
+	mux.HandleFunc("GET /{$}", handleIndex)
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	// Healthcheck
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -120,6 +126,149 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// ===== Веб-страница =====
+
+func handleIndex(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(indexHTML))
+}
+
+const indexHTML = `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banana Cloud Storage</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#0f172a;color:#e5e7eb}
+.container{max-width:980px;margin:0 auto;padding:24px}
+h1{margin-top:0;color:#facc15}
+.card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:16px;margin-bottom:16px}
+input,button{padding:10px 12px;border-radius:8px;border:1px solid #374151;background:#020617;color:#e5e7eb;margin:4px}
+button{cursor:pointer;background:#1d4ed8;border:1px solid #2563eb;color:white}
+button:hover{background:#2563eb}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th,td{border-bottom:1px solid #1f2937;padding:10px;text-align:left;vertical-align:middle}
+#status{margin-top:12px;padding:12px;border-radius:8px;background:#020617;border:1px solid #1f2937;min-height:20px;white-space:pre-wrap}
+.small{color:#94a3b8;font-size:14px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Banana Cloud Storage</h1>
+
+<div class="card">
+<h2>Авторизация</h2>
+<div>
+<input id="email" type="email" placeholder="email" value="test@example.com">
+<input id="password" type="password" placeholder="password" value="secret123">
+</div>
+<div>
+<button onclick="registerUser()">Register</button>
+<button onclick="login()">Login</button>
+<button onclick="logout()">Logout</button>
+</div>
+<div class="small">После регистрации можно сразу войти. Токен сохраняется в браузере.</div>
+</div>
+
+<div class="card">
+<h2>Файлы</h2>
+<div>
+<input id="file" type="file">
+<button onclick="uploadFile()">Upload</button>
+<button onclick="loadFiles()">Refresh</button>
+</div>
+<table>
+<thead><tr><th>Name</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead>
+<tbody id="files"></tbody>
+</table>
+</div>
+
+<div id="status">Готово. Зарегистрируйся или войди.</div>
+</div>
+
+<script>
+var token = localStorage.getItem('banana_token') || '';
+var currentFiles = [];
+
+function setStatus(m){document.getElementById('status').textContent=m}
+function setToken(v){token=v||'';if(token)localStorage.setItem('banana_token',token);else localStorage.removeItem('banana_token')}
+function getCredentials(){return{email:document.getElementById('email').value.trim(),password:document.getElementById('password').value}}
+
+async function api(path,opts){
+	opts=opts||{};opts.headers=opts.headers||{};
+	if(token)opts.headers['Authorization']='Bearer '+token;
+	if(opts.body&&!(opts.body instanceof FormData))opts.headers['Content-Type']='application/json';
+	var r=await fetch(path,opts),d=null;
+	try{d=await r.json()}catch(e){}
+	if(!r.ok){var msg='HTTP '+r.status;if(d&&d.error&&d.error.message)msg=d.error.message;throw new Error(msg)}
+	return d;
+}
+
+async function registerUser(){
+	try{await api('/api/v1/auth/register',{method:'POST',body:JSON.stringify(getCredentials())});setStatus('Пользователь создан. Вхожу...');await login()}
+	catch(e){setStatus('Ошибка: '+e.message)}
+}
+
+async function login(){
+	try{var d=await api('/api/v1/auth/login',{method:'POST',body:JSON.stringify(getCredentials())});setToken(d.token);setStatus('Вход выполнен.');await loadFiles()}
+	catch(e){setStatus('Ошибка: '+e.message)}
+}
+
+async function logout(){
+	try{await api('/api/v1/auth/logout',{method:'POST'})}catch(e){}
+	setToken('');currentFiles=[];renderFiles();setStatus('Выход выполнен.');
+}
+
+async function loadFiles(){
+	try{if(!token){currentFiles=[];renderFiles();setStatus('Сначала войди.');return}
+	var d=await api('/api/v1/files');currentFiles=d.items||[];renderFiles();setStatus('Файлов: '+currentFiles.length)}
+	catch(e){setStatus('Ошибка: '+e.message)}
+}
+
+function renderFiles(){
+	var tb=document.getElementById('files');tb.innerHTML='';
+	if(!currentFiles.length){var tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=4;td.textContent='Файлов пока нет.';tr.appendChild(td);tb.appendChild(tr);return}
+	currentFiles.forEach(function(f){
+		var tr=document.createElement('tr');
+		var n=document.createElement('td');n.textContent=f.name;
+		var s=document.createElement('td');s.textContent=f.size;
+		var c=document.createElement('td');c.textContent=new Date(f.createdAt).toLocaleString();
+		var a=document.createElement('td');
+		var dl=document.createElement('button');dl.textContent='Download';dl.onclick=function(){downloadFile(f.id,f.name)};
+		var del=document.createElement('button');del.textContent='Delete';del.onclick=function(){deleteFile(f.id)};
+		a.appendChild(dl);a.appendChild(document.createTextNode(' '));a.appendChild(del);
+		tr.appendChild(n);tr.appendChild(s);tr.appendChild(c);tr.appendChild(a);tb.appendChild(tr);
+	});
+}
+
+async function uploadFile(){
+	try{if(!token){setStatus('Сначала войди.');return}
+	var fi=document.getElementById('file');if(!fi.files||!fi.files[0]){setStatus('Выбери файл.');return}
+	var fd=new FormData();fd.append('file',fi.files[0]);
+	await api('/api/v1/files',{method:'POST',body:fd});fi.value='';setStatus('Файл загружен.');await loadFiles()}
+	catch(e){setStatus('Ошибка: '+e.message)}
+}
+
+async function deleteFile(id){
+	try{await api('/api/v1/files/'+encodeURIComponent(id),{method:'DELETE'});setStatus('Файл удалён.');await loadFiles()}
+	catch(e){setStatus('Ошибка: '+e.message)}
+}
+
+async function downloadFile(id,name){
+	try{var r=await fetch('/api/v1/files/'+encodeURIComponent(id)+'/download',{headers:{'Authorization':'Bearer '+token}});
+	if(!r.ok)throw new Error('HTTP '+r.status);
+	var b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');
+	a.href=u;a.download=name||'download';document.body.appendChild(a);a.click();a.remove();
+	setTimeout(function(){URL.revokeObjectURL(u)},1000);setStatus('Скачивание началось.')}
+	catch(e){setStatus('Ошибка: '+e.message)}
+}
+
+window.onload=function(){if(token)loadFiles()};
+</script>
+</body>
+</html>`
 
 // ===== Store =====
 
@@ -455,10 +604,8 @@ func handleUploadFile(store *Store, maxUploadBytes int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 
-		// Ограничиваем размер запроса
 		r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 
-		// Парсим multipart/form-data
 		if err := r.ParseMultipartForm(32 << 20); err != nil {
 			var maxBytesErr *http.MaxBytesError
 			if errors.As(err, &maxBytesErr) {
@@ -622,11 +769,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
 		next.ServeHTTP(w, r)
-
-		slog.Info(
-			"request",
+		slog.Info("request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"duration", time.Since(start).String(),
@@ -753,8 +897,6 @@ func randomHex(n int) string {
 	return hex.EncodeToString(bytes)
 }
 
-// Простое хеширование пароля для учебного примера.
-// Для продакшена использовать bcrypt/argon2.
 func hashPassword(password, salt string) string {
 	data := []byte(salt + ":" + password)
 
