@@ -16,6 +16,42 @@
     }
   },
   "files": {
+    "82653ddd3ee5a4823331c7f4cb50d070": {
+      "id": "82653ddd3ee5a4823331c7f4cb50d070",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "name": "Иавнов Арётм ПК магазин.txt",
+      "size": 29160,
+      "contentType": "text/plain",
+      "storageKey": "82653ddd3ee5a4823331c7f4cb50d070",
+      "createdAt": "2026-10-05T09:49:50.9510293Z"
+    },
+    "866864818603076e33a347b2b4343a55": {
+      "id": "866864818603076e33a347b2b4343a55",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "name": "9ebcb2d9ae8878b714f01e0dd1259528.jpg",
+      "size": 28942,
+      "contentType": "image/jpeg",
+      "storageKey": "866864818603076e33a347b2b4343a55",
+      "createdAt": "2026-10-05T09:51:02.5825307Z"
+    },
+    "8cd94d8dd0d4d7865b24713358724200": {
+      "id": "8cd94d8dd0d4d7865b24713358724200",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "name": "ba46e67e9518c20a2a66a820c43aa81a.jpg",
+      "size": 104326,
+      "contentType": "image/jpeg",
+      "storageKey": "8cd94d8dd0d4d7865b24713358724200",
+      "createdAt": "2026-10-05T09:47:17.1435156Z"
+    },
+    "9b38d01f39bdb9b3a4d056499734b1b4": {
+      "id": "9b38d01f39bdb9b3a4d056499734b1b4",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "name": "38e811620fe16b2e4a4e42d95b44a9ca.jpg",
+      "size": 52929,
+      "contentType": "image/jpeg",
+      "storageKey": "9b38d01f39bdb9b3a4d056499734b1b4",
+      "createdAt": "2026-10-05T09:48:57.521213Z"
+    },
     "a1f92916dd870db6471b8eb8156ada2b": {
       "id": "a1f92916dd870db6471b8eb8156ada2b",
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
@@ -25,6 +61,15 @@
       "storageKey": "a1f92916dd870db6471b8eb8156ada2b",
       "createdAt": "2026-10-05T08:42:36.0115805Z"
     },
+    "b2a9873059ab0d5a64042a9e4f98e0f9": {
+      "id": "b2a9873059ab0d5a64042a9e4f98e0f9",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "name": "Аннотация 2026-09-23 144807.png",
+      "size": 18515,
+      "contentType": "image/png",
+      "storageKey": "b2a9873059ab0d5a64042a9e4f98e0f9",
+      "createdAt": "2026-10-05T09:43:18.3347055Z"
+    },
     "b604bfbf25511b82ed724814949fbaa4": {
       "id": "b604bfbf25511b82ed724814949fbaa4",
       "userID": "fb494190974c1b03417778ebd6196d35",
@@ -33,6 +78,15 @@
       "contentType": "image/png",
       "storageKey": "b604bfbf25511b82ed724814949fbaa4",
       "createdAt": "2026-10-05T08:35:38.5688367Z"
+    },
+    "fd85c9b8f0d39e286fed66998d321d41": {
+      "id": "fd85c9b8f0d39e286fed66998d321d41",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "name": "+-.docx",
+      "size": 13579,
+      "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "storageKey": "fd85c9b8f0d39e286fed66998d321d41",
+      "createdAt": "2026-10-05T09:49:38.3665821Z"
     }
   },
   "emailIndex": {
