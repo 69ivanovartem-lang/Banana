@@ -23,6 +23,7 @@
       "size": 29160,
       "contentType": "text/plain",
       "storageKey": "82653ddd3ee5a4823331c7f4cb50d070",
+      "folderID": "",
       "createdAt": "2026-10-05T09:49:50.9510293Z"
     },
     "866864818603076e33a347b2b4343a55": {
@@ -32,6 +33,7 @@
       "size": 28942,
       "contentType": "image/jpeg",
       "storageKey": "866864818603076e33a347b2b4343a55",
+      "folderID": "be77fc276fc48b67de7bfb135e1669a6",
       "createdAt": "2026-10-05T09:51:02.5825307Z"
     },
     "8cd94d8dd0d4d7865b24713358724200": {
@@ -41,6 +43,7 @@
       "size": 104326,
       "contentType": "image/jpeg",
       "storageKey": "8cd94d8dd0d4d7865b24713358724200",
+      "folderID": "be77fc276fc48b67de7bfb135e1669a6",
       "createdAt": "2026-10-05T09:47:17.1435156Z"
     },
     "9b38d01f39bdb9b3a4d056499734b1b4": {
@@ -50,6 +53,7 @@
       "size": 52929,
       "contentType": "image/jpeg",
       "storageKey": "9b38d01f39bdb9b3a4d056499734b1b4",
+      "folderID": "be77fc276fc48b67de7bfb135e1669a6",
       "createdAt": "2026-10-05T09:48:57.521213Z"
     },
     "a1f92916dd870db6471b8eb8156ada2b": {
@@ -59,6 +63,7 @@
       "size": 18515,
       "contentType": "image/png",
       "storageKey": "a1f92916dd870db6471b8eb8156ada2b",
+      "folderID": "be77fc276fc48b67de7bfb135e1669a6",
       "createdAt": "2026-10-05T08:42:36.0115805Z"
     },
     "b2a9873059ab0d5a64042a9e4f98e0f9": {
@@ -68,6 +73,7 @@
       "size": 18515,
       "contentType": "image/png",
       "storageKey": "b2a9873059ab0d5a64042a9e4f98e0f9",
+      "folderID": "be77fc276fc48b67de7bfb135e1669a6",
       "createdAt": "2026-10-05T09:43:18.3347055Z"
     },
     "b604bfbf25511b82ed724814949fbaa4": {
@@ -77,6 +83,7 @@
       "size": 18515,
       "contentType": "image/png",
       "storageKey": "b604bfbf25511b82ed724814949fbaa4",
+      "folderID": "",
       "createdAt": "2026-10-05T08:35:38.5688367Z"
     },
     "fd85c9b8f0d39e286fed66998d321d41": {
@@ -86,7 +93,51 @@
       "size": 13579,
       "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "storageKey": "fd85c9b8f0d39e286fed66998d321d41",
+      "folderID": "",
       "createdAt": "2026-10-05T09:49:38.3665821Z"
+    }
+  },
+  "folders": {
+    "be77fc276fc48b67de7bfb135e1669a6": {
+      "id": "be77fc276fc48b67de7bfb135e1669a6",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "name": "Бэээ",
+      "parentID": "",
+      "createdAt": "2026-10-12T09:53:01.4047535Z"
+    }
+  },
+  "shareLinks": {
+    "159e52bd9b0389ee361d1286fbdf1cf4": {
+      "id": "159e52bd9b0389ee361d1286fbdf1cf4",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "resourceType": "file",
+      "resourceID": "82653ddd3ee5a4823331c7f4cb50d070",
+      "token": "8e75b9f23073001b9811709b30f998e8d7b6db6d46975dd359ec6308ee75d1fb",
+      "createdAt": "2026-10-12T10:08:43.6936095Z"
+    },
+    "aa7cd30616fbcd234ff4d03400cf4f92": {
+      "id": "aa7cd30616fbcd234ff4d03400cf4f92",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "resourceType": "folder",
+      "resourceID": "be77fc276fc48b67de7bfb135e1669a6",
+      "token": "7a40d3e9337eadb1ff47d6b53a65d7115d03d93ce8e4ee5ef72b3e810b75d831",
+      "createdAt": "2026-10-12T09:53:53.7327014Z"
+    },
+    "c67cee91e6c60da159159e913310a6fb": {
+      "id": "c67cee91e6c60da159159e913310a6fb",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "resourceType": "file",
+      "resourceID": "866864818603076e33a347b2b4343a55",
+      "token": "4a4448755151cb2bf6a65ad37ce30be78c22d8f63c67fa0e8dc5e810f849dedc",
+      "createdAt": "2026-10-12T09:51:51.2767664Z"
+    },
+    "e8a1ea265ecf9e9ef40cd16f7658d94d": {
+      "id": "e8a1ea265ecf9e9ef40cd16f7658d94d",
+      "userID": "b41a28aa2ed19441e837a07e27031ffa",
+      "resourceType": "folder",
+      "resourceID": "be77fc276fc48b67de7bfb135e1669a6",
+      "token": "7c68ca4312b3cf8c90083174e1558645e72029b9b87cb9f2b3fb36802ce50ab9",
+      "createdAt": "2026-10-12T10:09:08.8776601Z"
     }
   },
   "emailIndex": {
