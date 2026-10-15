@@ -27,7 +27,7 @@ function getUsers() {
   }
 }
 
-export default function Auth({ mode, setMode }) {
+export default function Auth({ mode, setMode, onSuccess }) {
   const [form, setForm] = useState({ nickname: '', password: '' });
   const [msg, setMsg] = useState(null);
   const isRegister = mode === 'register';
@@ -60,7 +60,8 @@ export default function Auth({ mode, setMode }) {
       users[nickname.toLowerCase()] = { nickname, passwordHash: hashPassword(password), createdAt: Date.now() };
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
       localStorage.setItem(SESSION_KEY, nickname);
-      setMsg({ type: 'ok', text: `Добро пожаловать в BANANA, ${nickname}! 🍌` });
+      if (onSuccess) onSuccess(nickname);
+      return;
     } else {
       const user = users[nickname.toLowerCase()];
       if (!user) {

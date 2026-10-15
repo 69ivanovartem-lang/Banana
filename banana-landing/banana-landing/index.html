@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BANANA — Backup And Network Attached Node Access</title>
+  <style>
+    :root {
+      --bg: #060606;
+      --fg: #FFFFFF;
+      --accent: #FDDA0D;
+      --muted: rgba(255, 255, 255, 0.6);
+      --card: #101010;
+      --border: rgba(255, 255, 255, 0.12);
+      --danger: #ff6b6b;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; }
+    [hidden] { display: none !important; }
+
+    /* ---------- Header ---------- */
+    .header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 48px;
+      background: rgba(6, 6, 6, 0.75);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: 2px; }
+    .logo .dot {
+      width: 34px; height: 34px; border-radius: 50% 50% 50% 4px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      color: #060606; font-size: 18px; font-weight: 900;
+      transform: rotate(-8deg);
+    }
+    .nav { display: flex; gap: 28px; font-size: 14px; color: var(--muted); }
+    .nav a:hover { color: var(--accent); }
+    .header-actions { display: flex; gap: 12px; }
+
+    .btn {
+      border: none; border-radius: 10px; padding: 11px 22px;
+      font-weight: 700; font-size: 14px; transition: all .2s ease;
+    }
+    .btn-ghost { background: transparent; color: var(--fg); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-accent { background: var(--accent); color: #060606; }
+    .btn-accent:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(253, 218, 13, 0.35); }
+    .btn-block { width: 100%; padding: 14px; font-size: 15px; }
+    .btn-sm { padding: 7px 13px; font-size: 13px; border-radius: 8px; }
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(255,107,107,.4); }
+    .btn-danger:hover { border-color: var(--danger); }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      text-align: center; padding: 140px 24px 80px; position: relative;
+    }
+    .hero::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(253, 218, 13, 0.12), transparent 60%),
+        radial-gradient(ellipse 40% 30% at 80% 90%, rgba(253, 218, 13, 0.06), transparent 60%);
+      pointer-events: none;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 7px 16px; font-size: 13px; color: var(--muted); margin-bottom: 28px;
+    }
+    .badge .pulse {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: .4; transform: scale(.7);} }
+    .hero h1 {
+      font-size: clamp(64px, 14vw, 168px); font-weight: 900; letter-spacing: 6px; line-height: 0.95;
+      background: linear-gradient(180deg, #FFFFFF 55%, var(--accent) 130%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero .expansion {
+      margin-top: 18px; font-size: clamp(14px, 2.2vw, 20px);
+      letter-spacing: 4px; text-transform: uppercase; color: var(--accent); font-weight: 600;
+    }
+    .hero .tagline {
+      margin-top: 26px; max-width: 620px; font-size: clamp(16px, 2vw, 19px);
+      color: var(--muted); line-height: 1.65;
+    }
+    .hero .cta { margin-top: 40px; display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+    .scroll-hint {
+      position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+      color: var(--muted); font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+      animation: bob 2s infinite ease-in-out;
+    }
+    @keyframes bob { 0%,100% { transform: translate(-50%, 0);} 50% { transform: translate(-50%, 8px);} }
+
+    /* ---------- Sections ---------- */
+    .section { padding: 110px 48px; max-width: 1200px; margin: 0 auto; }
+    .section-title { font-size: clamp(30px, 5vw, 48px); font-weight: 800; margin-bottom: 12px; }
+    .section-title .y { color: var(--accent); }
+    .section-sub { color: var(--muted); font-size: 17px; max-width: 640px; line-height: 1.6; margin-bottom: 56px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+      padding: 32px 28px; transition: all .25s ease;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-4px); }
+    .card .icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: rgba(253, 218, 13, 0.12); color: var(--accent);
+      display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 20px;
+    }
+    .card h3 { font-size: 19px; margin-bottom: 10px; }
+    .card p { color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 22px; margin-top: 70px; }
+    .stat {
+      text-align: center; padding: 34px 16px; border-radius: 18px;
+      background: linear-gradient(160deg, rgba(253,218,13,.07), transparent 55%);
+      border: 1px solid var(--border);
+    }
+    .stat .num { font-size: 40px; font-weight: 900; color: var(--accent); }
+    .stat .lbl { color: var(--muted); font-size: 13.5px; margin-top: 6px; letter-spacing: 1px; }
+
+    /* ---------- Auth ---------- */
+    .auth-wrap {
+      max-width: 460px; margin: 0 auto;
+      background: var(--card); border: 1px solid var(--border); border-radius: 24px;
+      padding: 40px 36px; position: relative; overflow: hidden;
+    }
+    .auth-wrap::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+    .tabs { display: flex; background: #0b0b0b; border-radius: 12px; padding: 5px; margin-bottom: 30px; }
+    .tab {
+      flex: 1; padding: 11px; border-radius: 9px; border: none; background: transparent;
+      color: var(--muted); font-weight: 700; font-size: 14px; transition: all .2s;
+    }
+    .tab.active { background: var(--accent); color: #060606; }
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 7px; letter-spacing: .5px; }
+    .field input[type="text"], .field input[type="password"], .field input[type="email"] {
+      width: 100%; padding: 13px 15px; border-radius: 11px;
+      background: #0b0b0b; border: 1px solid var(--border); color: var(--fg); font-size: 15px;
+      outline: none; transition: border .2s;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .checkbox-row {
+      display: flex; align-items: center; gap: 9px; margin-bottom: 20px;
+      font-size: 13.5px; color: var(--muted); user-select: none; cursor: pointer;
+    }
+    .checkbox-row input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+    .form-note { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 18px; }
+    .form-note a { color: var(--accent); cursor: pointer; }
+    .auth-msg { margin-top: 16px; text-align: center; font-size: 14px; min-height: 20px; }
+    .auth-msg.ok { color: var(--accent); }
+    .auth-msg.err { color: var(--danger); }
+    .session-note {
+      margin-bottom: 20px; text-align: center; font-size: 13.5px; color: var(--muted);
+      border: 1px dashed var(--border); border-radius: 11px; padding: 10px;
+    }
+    .session-note b { color: var(--accent); }
+
+    /* ---------- Footer ---------- */
+    footer {
+      border-top: 1px solid var(--border); padding: 44px 48px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;
+      color: var(--muted); font-size: 13.5px;
+    }
+    .team { display: flex; gap: 10px; flex-wrap: wrap; }
+    .member {
+      border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 12.5px;
+    }
+    .member b { color: var(--accent); font-weight: 700; }
+
+    .reveal { opacity: 0; transform: translateY(30px); transition: all .7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    /* ========================================================= */
+    /* ----------------------- ОБЛАКО -------------------------- */
+    /* ========================================================= */
+    .cloud { min-height: 100vh; display: flex; flex-direction: column; }
+
+    .cloud-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 14px 28px; border-bottom: 1px solid var(--border);
+      background: rgba(6,6,6,.9); position: sticky; top: 0; z-index: 40;
+      backdrop-filter: blur(12px);
+    }
+    .cloud-user {
+      display: flex; align-items: center; gap: 10px;
+      border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px 6px 6px;
+      font-size: 13.5px;
+    }
+    .cloud-user .avatar {
+      width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+      color: #060606; font-weight: 900; display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+
+    .cloud-body { flex: 1; display: flex; min-height: 0; }
+
+    .cloud-side {
+      width: 250px; border-right: 1px solid var(--border); padding: 24px 16px;
+      display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+    }
+    .side-link {
+      display: flex; align-items: center; gap: 11px; padding: 11px 14px;
+      border-radius: 11px; font-size: 14.5px; color: var(--muted); cursor: pointer;
+      border: none; background: transparent; text-align: left; width: 100%;
+      transition: all .15s;
+    }
+    .side-link:hover { color: var(--fg); background: rgba(255,255,255,.04); }
+    .side-link.active { background: rgba(253,218,13,.12); color: var(--accent); font-weight: 700; }
+
+    .storage-box { margin-top: auto; padding: 16px; border: 1px solid var(--border); border-radius: 14px; }
+    .storage-box .lbl { font-size: 12.5px; color: var(--muted); margin-bottom: 9px; }
+    .storage-bar { height: 7px; border-radius: 99px; background: #0b0b0b; overflow: hidden; }
+    .storage-bar .fill {
+      height: 100%; border-radius: 99px; width: 0%;
+      background: linear-gradient(90deg, var(--accent), #ffb700); transition: width .5s ease;
+    }
+    .storage-box .val { font-size: 12px; color: var(--fg); margin-top: 8px; font-weight: 600; }
+
+    .cloud-main { flex: 1; padding: 26px 30px; min-width: 0; }
+
+    .cloud-toolbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      flex-wrap: wrap; margin-bottom: 20px;
+    }
+    .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 14px; flex-wrap: wrap; }
+    .breadcrumb a { color: var(--muted); cursor: pointer; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb .sep { color: rgba(255,255,255,.25); }
+    .breadcrumb .current { color: var(--fg); font-weight: 700; }
+    .toolbar-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .search-input {
+      padding: 9px 14px; border-radius: 10px; font-size: 13.5px;
+      background: #0b0b0b; border: 1px solid var(--border); color: var(--fg);
+      outline: none; width: 220px;
+    }
+    .search-input:focus { border-color: var(--accent); }
+
+    .file-table { width: 100%; border-collapse: collapse; }
+    .file-row {
+      display: grid; grid-template-columns: minmax(0, 1fr) 110px 170px 190px;
+      align-items: center; gap: 12px; padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.06); transition: background .15s;
+    }
+    .file-row:hover { background: rgba(255,255,255,.03); }
+    .file-row.head { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .file-row.head:hover { background: transparent; }
+    .file-name { display: flex; align-items: center; gap: 11px; min-width: 0; cursor: pointer; font-size: 14.5px; }
+    .file-name .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-name:hover .fname { color: var(--accent); }
+    .file-ico { font-size: 19px; flex-shrink: 0; }
+    .file-size, .file-date { color: var(--muted); font-size: 13px; }
+    .file-actions { display: flex; gap: 7px; justify-content: flex-end; }
+    .icon-btn {
+      background: transparent; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 8px; padding: 6px 9px; font-size: 13px; transition: all .15s;
+    }
+    .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+    .empty-state {
+      text-align: center; color: var(--muted); padding: 70px 20px; font-size: 15px;
+    }
+    .empty-state .big { font-size: 44px; margin-bottom: 14px; }
+
+    .cloud-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 20px);
+      background: var(--card); border: 1px solid var(--accent); color: var(--fg);
+      padding: 12px 22px; border-radius: 12px; font-size: 14px; opacity: 0;
+      pointer-events: none; transition: all .3s ease; z-index: 100;
+    }
+    .cloud-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* Когда пользователь в облаке — прячем посадочную */
+    body.in-cloud .header,
+    body.in-cloud .hero,
+    body.in-cloud #about,
+    body.in-cloud #auth,
+    body.in-cloud footer { display: none; }
+
+    @media (max-width: 900px) {
+      .cloud-side { width: 66px; padding: 20px 10px; }
+      .side-link span.txt, .storage-box { display: none; }
+      .file-row { grid-template-columns: minmax(0,1fr) 110px 150px; }
+      .file-date { display: none; }
+    }
+    @media (max-width: 720px) {
+      .header { padding: 14px 18px; }
+      .nav { display: none; }
+      .section { padding: 70px 20px; }
+      footer { padding: 32px 20px; flex-direction: column; text-align: center; }
+      .file-row { grid-template-columns: minmax(0,1fr) 150px; }
+      .file-size { display: none; }
+      .cloud-main { padding: 18px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ================= ПОСАДОЧНАЯ СТРАНИЦА ================= -->
+  <header class="header">
+    <a class="logo" href="#top">
+      <span class="dot">B</span> BANANA
+    </a>
+    <nav class="nav">
+      <a href="#about">О сервисе</a>
+      <a href="#features">Возможности</a>
+      <a href="#auth">Доступ</a>
+    </nav>
+    <div class="header-actions">
+      <button class="btn btn-ghost" data-auth-tab="login">Войти</button>
+      <button class="btn btn-accent" data-auth-tab="register">Регистрация</button>
+    </div>
+  </header>
+
+  <section class="hero" id="top">
+    <div class="badge"><span class="pulse"></span> Облачное хранилище нового поколения</div>
+    <h1>BANANA</h1>
+    <p class="expansion">Backup And Network Attached Node Access</p>
+    <p class="tagline">
+      Учебное облако колледжа для резервного копирования файлов и доступа к сетевым
+      узлам хранения. Быстро, надёжно и с душой — как спелый банан.
+    </p>
+    <div class="cta">
+      <button class="btn btn-accent" data-auth-tab="register">Создать аккаунт</button>
+      <a class="btn btn-ghost" href="#about">Узнать больше</a>
+    </div>
+    <div class="scroll-hint">листай вниз</div>
+  </section>
+
+  <section class="section" id="about">
+    <h2 class="section-title reveal">Что такое <span class="y">BANANA</span>?</h2>
+    <p class="section-sub reveal">
+      BANANA — это студенческое облако, созданное командой из трёх энтузиастов.
+      Мы объединили резервное копирование и доступ к сетевым узлам хранения
+      в один простой сервис для всего колледжа.
+    </p>
+    <div class="grid" id="features">
+      <div class="card reveal">
+        <div class="icon">💾</div>
+        <h3>Резервное копирование</h3>
+        <p>Автоматические бэкапы ваших файлов с версионированием. Никаких потерянных курсовых — всё под защитой.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🌐</div>
+        <h3>Сетевые узлы NAS</h3>
+        <p>Прямой доступ к сетевым хранилищам колледжа через единый узел. Подключайся из любой аудитории.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">⚡</div>
+        <h3>Мгновенная синхронизация</h3>
+        <p>Файлы обновляются на всех устройствах в реальном времени. Начал на паре — закончил дома.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🔒</div>
+        <h3>Безопасность</h3>
+        <p>Шифрование при передаче и хранении, разграничение прав доступа для студентов и преподавателей.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">📁</div>
+        <h3>Общие папки</h3>
+        <p>Совместная работа над проектами: общие директории для команд, групп и кружков колледжа.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🆓</div>
+        <h3>Бесплатно для студентов</h3>
+        <p>Учебный проект — учебные цены: базовые тарифы бесплатны для всех учащихся колледжа.</p>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat reveal"><div class="num">99.9%</div><div class="lbl">Аптайм сервиса</div></div>
+      <div class="stat reveal"><div class="num">10 ГБ</div><div class="lbl">Бесплатно каждому</div></div>
+      <div class="stat reveal"><div class="num">256-bit</div><div class="lbl">Шифрование AES</div></div>
+      <div class="stat reveal"><div class="num">3</div><div class="lbl">Разработчика в команде</div></div>
+    </div>
+  </section>
+
+  <section class="section" id="auth">
+    <h2 class="section-title reveal" style="text-align: center;">Начни прямо <span class="y">сейчас</span></h2>
+    <p class="section-sub reveal" style="text-align: center; margin: 0 auto 48px;">
+      Зарегистрируйся по никнейму и получи 10 ГБ облачного пространства бесплатно.
+    </p>
+    <div class="auth-wrap reveal">
+      <div class="tabs">
+        <button class="tab active" data-tab="register" type="button">Регистрация</button>
+        <button class="tab" data-tab="login" type="button">Вход</button>
+      </div>
+      <div class="session-note" id="sessionNote" hidden></div>
+      <form id="authForm" novalidate>
+        <div class="field">
+          <label for="nickname">Никнейм</label>
+          <input type="text" id="nickname" placeholder="banan_king" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="password">Пароль (минимум 8 символов)</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="rememberMe" checked />
+          Запомнить меня на этом компьютере
+        </label>
+        <button class="btn btn-accent btn-block" type="submit" id="submitBtn">Создать аккаунт</button>
+      </form>
+      <div class="auth-msg" id="authMsg"></div>
+      <p class="form-note" id="formNote"></p>
+    </div>
+  </section>
+
+  <footer>
+    <div>© 2026 BANANA · Backup And Network Attached Node Access · Учебный проект колледжа</div>
+    <div class="team">
+      <span class="member"><b>Артём Кислянских</b> — посадочная страница + регистрация</span>
+      <span class="member"><b>Артём Иванов</b> — бэкенд</span>
+      <span class="member"><b>Никита Князев</b> — облако</span>
+    </div>
+  </footer>
+
+  <!-- ================= ИНТЕРФЕЙС ОБЛАКА (MVP) ================= -->
+  <div class="cloud" id="cloudView" hidden>
+    <div class="cloud-top">
+      <a class="logo" style="cursor: pointer;" id="cloudLogo">
+        <span class="dot">B</span> BANANA
+      </a>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="cloud-user">
+          <span class="avatar" id="userAvatar">?</span>
+          <span id="userName">user</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn">Выйти</button>
+      </div>
+    </div>
+
+    <div class="cloud-body">
+      <aside class="cloud-side">
+        <button class="side-link active" data-view="files"><span>📂</span><span class="txt">Файлы</span></button>
+        <button class="side-link" data-view="trash"><span>🗑️</span><span class="txt">Корзина</span></button>
+        <div class="storage-box">
+          <div class="lbl">Занято в облаке</div>
+          <div class="storage-bar"><div class="fill" id="storageFill"></div></div>
+          <div class="val" id="storageVal">0 Байт из 10 ГБ</div>
+        </div>
+      </aside>
+
+      <main class="cloud-main">
+        <div class="cloud-toolbar">
+          <div class="breadcrumb" id="breadcrumb"></div>
+          <div class="toolbar-actions">
+            <input type="text" class="search-input" id="searchInput" placeholder="🔍 Поиск в папке…" />
+            <button class="btn btn-ghost btn-sm" id="newFolderBtn">📁 + Создать папку</button>
+            <button class="btn btn-accent btn-sm" id="uploadBtn">⬆️ Загрузить файл</button>
+            <button class="btn btn-danger btn-sm" id="emptyTrashBtn" hidden>Очистить корзину</button>
+            <input type="file" id="fileInput" multiple hidden />
+          </div>
+        </div>
+        <div id="fileList"></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="cloud-toast" id="toast"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      /* ===================== УТИЛИТЫ ===================== */
+      function $(id) { return document.getElementById(id); }
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+      function uid() { return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+      function formatBytes(b) {
+        if (!b && b !== 0) return '—';
+        var units = ['Байт', 'КБ', 'МБ', 'ГБ', 'ТБ'];
+        var i = 0;
+        while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
+        return (i === 0 ? b : b.toFixed(1).replace('.0', '')) + ' ' + units[i];
+      }
+      function formatDate(ts) {
+        var d = new Date(ts);
+        return d.toLocaleDateString('ru-RU') + ', ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      var toastEl = $('toast'), toastTimer = null;
+      function toast(text) {
+        toastEl.textContent = text;
+        toastEl.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2600);
+      }
+
+      /* ===================== АВТОРИЗАЦИЯ ===================== */
+      var USERS_KEY = 'banana_users';
+      var SESSION_KEY = 'banana_session';
+      var MIN_PASSWORD = 8;
+      var MIN_NICKNAME = 3;
+
+      // Демо-хэш пароля. На настоящем бэкенде (Go) пароль хэшируется
+      // через bcrypt — здесь только чтобы не хранить его открытым текстом.
+      function hashPassword(str) {
+        var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+        for (var i = 0; i < str.length; i++) {
+          var ch = str.charCodeAt(i);
+          h1 = Math.imul(h1 ^ ch, 2654435761);
+          h2 = Math.imul(h2 ^ ch, 1597334677);
+        }
+        h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+        h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+        return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16);
+      }
+
+      function getUsers() {
+        try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; }
+        catch (e) { return {}; }
+      }
+
+      function setSession(nickname, remember) {
+        // Галочка «запомнить меня»: localStorage — навсегда, sessionStorage — до закрытия браузера
+        if (remember) {
+          localStorage.setItem(SESSION_KEY, nickname);
+          sessionStorage.removeItem(SESSION_KEY);
+        } else {
+          sessionStorage.setItem(SESSION_KEY, nickname);
+          localStorage.removeItem(SESSION_KEY);
+        }
+      }
+      function getSession() {
+        return localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
+      }
+      function clearSession() {
+        localStorage.removeItem(SESSION_KEY);
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+
+      var form = $('authForm');
+      var nicknameInput = $('nickname');
+      var passwordInput = $('password');
+      var rememberInput = $('rememberMe');
+      var submitBtn = $('submitBtn');
+      var msgEl = $('authMsg');
+      var noteEl = $('formNote');
+      var sessionNote = $('sessionNote');
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+      var mode = 'register';
+
+      function setMode(newMode) {
+        mode = newMode;
+        tabs.forEach(function (t) {
+          t.classList.toggle('active', t.getAttribute('data-tab') === mode);
+        });
+        submitBtn.textContent = mode === 'register' ? 'Создать аккаунт' : 'Войти';
+        noteEl.innerHTML = mode === 'register'
+          ? 'Уже есть аккаунт? <a data-goto="login">Войти</a>'
+          : 'Нет аккаунта? <a data-goto="register">Зарегистрироваться</a>';
+        showMsg('', '');
+      }
+
+      function showMsg(text, type) {
+        msgEl.textContent = text;
+        msgEl.className = 'auth-msg' + (type ? ' ' + type : '');
+      }
+
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () { setMode(t.getAttribute('data-tab')); });
+      });
+      noteEl.addEventListener('click', function (e) {
+        var goto = e.target.getAttribute && e.target.getAttribute('data-goto');
+        if (goto) setMode(goto);
+      });
+      document.querySelectorAll('[data-auth-tab]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setMode(btn.getAttribute('data-auth-tab'));
+          $('auth').scrollIntoView({ behavior: 'smooth' });
+        });
+      });
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var nickname = nicknameInput.value.trim();
+        var password = passwordInput.value;
+
+        if (!nickname || !password) { showMsg('Заполните все поля', 'err'); return; }
+        if (nickname.length < MIN_NICKNAME) { showMsg('Никнейм должен быть не короче ' + MIN_NICKNAME + ' символов', 'err'); return; }
+        if (password.length < MIN_PASSWORD) { showMsg('Пароль должен быть не короче ' + MIN_PASSWORD + ' символов', 'err'); return; }
+
+        var users = getUsers();
+        var key = nickname.toLowerCase();
+
+        if (mode === 'register') {
+          if (users[key]) { showMsg('Такой никнейм уже занят — придумай другой', 'err'); return; }
+          users[key] = { nickname: nickname, passwordHash: hashPassword(password), createdAt: Date.now() };
+          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+          setSession(nickname, rememberInput.checked);
+          form.reset(); rememberInput.checked = true;
+          enterCloud(nickname);
+        } else {
+          var user = users[key];
+          if (!user) { showMsg('Пользователь с таким никнеймом не найден', 'err'); return; }
+          if (user.passwordHash !== hashPassword(password)) { showMsg('Неверный пароль', 'err'); return; }
+          setSession(user.nickname, rememberInput.checked);
+          form.reset(); rememberInput.checked = true;
+          enterCloud(user.nickname);
+        }
+      });
+
+      function updateSessionNote() {
+        var nick = getSession();
+        if (nick) {
+          sessionNote.hidden = false;
+          sessionNote.innerHTML = 'Вы вошли как <b>' + escapeHtml(nick) + '</b> — <a id="goCloudLink" style="color: var(--accent); cursor: pointer;">перейти в облако</a> · <a data-goto="logout" style="color: var(--accent); cursor: pointer;">выйти</a>';
+          $('goCloudLink').addEventListener('click', function () { enterCloud(nick); });
+        } else {
+          sessionNote.hidden = true;
+          sessionNote.innerHTML = '';
+        }
+      }
+      sessionNote.addEventListener('click', function (e) {
+        if (e.target.getAttribute && e.target.getAttribute('data-goto') === 'logout') {
+          clearSession();
+          updateSessionNote();
+          showMsg('Вы вышли из аккаунта', '');
+        }
+      });
+
+      /* ===================== ОБЛАКО (MVP) ===================== */
+      var cloudView = $('cloudView');
+      var fileListEl = $('fileList');
+      var breadcrumbEl = $('breadcrumb');
+      var searchInput = $('searchInput');
+      var newFolderBtn = $('newFolderBtn');
+      var uploadBtn = $('uploadBtn');
+      var emptyTrashBtn = $('emptyTrashBtn');
+      var fileInput = $('fileInput');
+      var sideLinks = Array.prototype.slice.call(document.querySelectorAll('.side-link'));
+
+      var QUOTA = 10 * 1024 * 1024 * 1024; // 10 ГБ
+
+      var currentUser = null;
+      var fsKey = null;
+
+      // Состояние навигации: папка (null = корень) и режим (files / trash)
+      var nav = { parent: null, view: 'files', search: '' };
+      var pathCache = []; // цепочка открытых папок для хлебных крошек
+
+      function getFS() {
+        try { return JSON.parse(localStorage.getItem(fsKey)) || { items: [] }; }
+        catch (e) { return { items: [] }; }
+      }
+      function saveFS(fs) {
+        localStorage.setItem(fsKey, JSON.stringify(fs));
+      }
+
+      // Стартовая структура: Аудитории → группы → общая/личная папки (по ТЗ)
+      function seedFS(nickname) {
+        function folder(name, parent) {
+          return { id: uid(), name: name, type: 'folder', parent: parent, size: 0, data: null, created: Date.now() };
+        }
+        var items = [];
+        var a1 = folder('Аудитория 305', null); items.push(a1);
+        var a2 = folder('Аудитория 412', null); items.push(a2);
+
+        var g1 = folder('Группа ИС-21', a1.id); items.push(g1);
+        var g2 = folder('Группа ИС-22', a1.id); items.push(g2);
+        var g3 = folder('Группа ИС-31', a2.id); items.push(g3);
+
+        [g1, g2, g3].forEach(function (g) {
+          items.push(folder('Общая папка', g.id));
+          items.push(folder('Личная папка — ' + nickname, g.id));
+        });
+        return { items: items };
+      }
+
+      function ensureFS(nickname) {
+        if (!localStorage.getItem(fsKey)) {
+          saveFS(seedFS(nickname));
+        }
+      }
+
+      function findItem(fs, id) {
+        for (var i = 0; i < fs.items.length; i++) if (fs.items[i].id === id) return fs.items[i];
+        return null;
+      }
+      function childrenOf(fs, parent) {
+        return fs.items.filter(function (it) { return it.parent === parent; });
+      }
+      function nameExists(fs, parent, name, exceptId) {
+        return fs.items.some(function (it) {
+          return it.parent === parent && it.id !== exceptId && it.name.toLowerCase() === name.toLowerCase();
+        });
+      }
+
+      // Занятое место по ВСЕМУ облаку (все пользователи, без корзины) — пункт ТЗ
+      function totalUsed() {
+        var used = 0;
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf('banana_fs_') === 0) {
+            try {
+              var fs = JSON.parse(localStorage.getItem(k)) || { items: [] };
+              fs.items.forEach(function (it) {
+                if (it.type === 'file' && it.parent !== 'trash') used += it.size || 0;
+              });
+            } catch (e) { /* ignore */ }
+          }
+        }
+        return used;
+      }
+
+      function updateStorageBar() {
+        var used = totalUsed();
+        var pct = Math.min(100, (used / QUOTA) * 100);
+        $('storageFill').style.width = pct.toFixed(2) + '%';
+        $('storageVal').textContent = formatBytes(used) + ' из ' + formatBytes(QUOTA);
+      }
+
+      function itemIcon(it) {
+        if (it.type === 'folder') return '📁';
+        var ext = it.name.split('.').pop().toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].indexOf(ext) >= 0) return '🖼️';
+        if (['mp4', 'mov', 'avi', 'mkv'].indexOf(ext) >= 0) return '🎬';
+        if (['mp3', 'wav', 'ogg', 'flac'].indexOf(ext) >= 0) return '🎵';
+        if (['zip', 'rar', '7z', 'tar'].indexOf(ext) >= 0) return '📦';
+        if (['pdf'].indexOf(ext) >= 0) return '📕';
+        if (['doc', 'docx', 'txt', 'rtf', 'md'].indexOf(ext) >= 0) return '📄';
+        if (['xls', 'xlsx', 'csv'].indexOf(ext) >= 0) return '📊';
+        if (['ppt', 'pptx'].indexOf(ext) >= 0) return '📽️';
+        if (['go', 'js', 'jsx', 'py', 'java', 'c', 'cpp', 'html', 'css', 'sql'].indexOf(ext) >= 0) return '💻';
+        return '📃';
+      }
+
+      /* ---------- Рендер ---------- */
+      function render() {
+        var fs = getFS();
+        var inTrash = nav.view === 'trash';
+        var parent = inTrash ? 'trash' : nav.parent;
+
+        // Хлебные крошки
+        var crumbs = inTrash
+          ? [{ name: 'Корзина', id: 'trash' }]
+          : buildCrumbs(fs);
+        breadcrumbEl.innerHTML = crumbs.map(function (c, i) {
+          var isLast = i === crumbs.length - 1;
+          var cls = isLast ? 'class="current"' : '';
+          return '<a ' + (isLast ? '' : 'data-crumb="' + c.id + '"') + ' ' + cls + '>' + escapeHtml(c.name) + '</a>';
+        }).join('<span class="sep">/</span>');
+
+        // Видимость кнопок
+        newFolderBtn.hidden = inTrash;
+        uploadBtn.hidden = inTrash;
+        emptyTrashBtn.hidden = !inTrash;
+        searchInput.placeholder = inTrash ? '🔍 Поиск в корзине…' : '🔍 Поиск в папке…';
+
+        // Элементы
+        var items = childrenOf(fs, parent);
+        var q = nav.search.trim().toLowerCase();
+        if (q) {
+          items = items.filter(function (it) { return it.name.toLowerCase().indexOf(q) >= 0; });
+        }
+        items.sort(function (a, b) {
+          if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+          return a.name.localeCompare(b.name, 'ru');
+        });
+
+        if (!items.length) {
+          fileListEl.innerHTML = '<div class="empty-state"><div class="big">' +
+            (q ? '🔍' : (inTrash ? '🗑️' : '🍌')) + '</div><div>' +
+            (q ? 'Ничего не найдено по запросу «' + escapeHtml(nav.search) + '»'
+               : (inTrash ? 'Корзина пуста' : 'Папка пуста. Создай папку или загрузи файл!')) +
+            '</div></div>';
+          return;
+        }
+
+        var rows = items.map(function (it) {
+          var actions;
+          if (inTrash) {
+            actions = '<button class="icon-btn" data-act="restore" data-id="' + it.id + '" title="Восстановить">♻️ Восстановить</button>' +
+                      '<button class="icon-btn danger" data-act="purge" data-id="' + it.id + '" title="Удалить навсегда">✖</button>';
+          } else if (it.type === 'folder') {
+            actions = '<button class="icon-btn" data-act="rename" data-id="' + it.id + '" title="Переименовать">✏️</button>' +
+                      '<button class="icon-btn danger" data-act="delete" data-id="' + it.id + '" title="В корзину">🗑️</button>';
+          } else {
+            actions = '<button class="icon-btn" data-act="download" data-id="' + it.id + '" title="Скачать">⬇️</button>' +
+                      '<button class="icon-btn" data-act="rename" data-id="' + it.id + '" title="Переименовать">✏️</button>' +
+                      '<button class="icon-btn danger" data-act="delete" data-id="' + it.id + '" title="В корзину">🗑️</button>';
+          }
+          return '<div class="file-row">' +
+            '<div class="file-name" data-act="' + (it.type === 'folder' && !inTrash ? 'open' : 'none') + '" data-id="' + it.id + '">' +
+              '<span class="file-ico">' + itemIcon(it) + '</span><span class="fname">' + escapeHtml(it.name) + '</span>' +
+            '</div>' +
+            '<div class="file-size">' + (it.type === 'folder' ? '—' : formatBytes(it.size)) + '</div>' +
+            '<div class="file-date">' + formatDate(it.created) + '</div>' +
+            '<div class="file-actions">' + actions + '</div>' +
+          '</div>';
+        });
+
+        fileListEl.innerHTML =
+          '<div class="file-row head"><div>Имя</div><div>Размер</div><div>Изменён</div><div style="text-align:right;">Действия</div></div>' +
+          rows.join('');
+      }
+
+      function buildCrumbs(fs) {
+        var crumbs = [{ name: '🍌 Моё облако', id: null }];
+        var cur = nav.parent;
+        var chain = [];
+        var guard = 0;
+        while (cur && guard < 50) {
+          var it = findItem(fs, cur);
+          if (!it) break;
+          chain.unshift({ name: it.name, id: it.id });
+          cur = it.parent;
+          guard++;
+        }
+        return crumbs.concat(chain);
+      }
+
+      /* ---------- Действия ---------- */
+      function openFolder(id) {
+        nav.parent = id;
+        nav.search = '';
+        searchInput.value = '';
+        render();
+      }
+      function goToCrumb(id) {
+        if (id === 'trash') { nav.view = 'trash'; syncSideLinks(); }
+        nav.parent = (id === 'trash') ? nav.parent : id;
+        nav.search = ''; searchInput.value = '';
+        render();
+      }
+
+      function createFolder() {
+        var name = prompt('Название новой папки:', 'Новая папка');
+        if (!name) return;
+        name = name.trim();
+        if (!name) return;
+        var fs = getFS();
+        if (nameExists(fs, nav.parent, name)) { toast('Папка с таким именем уже есть'); return; }
+        fs.items.push({ id: uid(), name: name, type: 'folder', parent: nav.parent, size: 0, data: null, created: Date.now() });
+        saveFS(fs);
+        render();
+        toast('Папка «' + name + '» создана');
+      }
+
+      function uploadFiles(files) {
+        if (!files || !files.length) return;
+        var fs = getFS();
+        var used = totalUsed();
+        Array.prototype.slice.call(files).forEach(function (f) {
+          if (used + f.size > QUOTA) { toast('Не хватает места в облаке'); return; }
+          var reader = new FileReader();
+          reader.onload = function () {
+            var fs2 = getFS();
+            var name = f.name;
+            var n = 1;
+            while (nameExists(fs2, nav.parent, name)) {
+              var dot = f.name.lastIndexOf('.');
+              name = (dot > 0 ? f.name.slice(0, dot) + ' (' + n + ')' + f.name.slice(dot) : f.name + ' (' + n + ')');
+              n++;
+            }
+            fs2.items.push({
+              id: uid(), name: name, type: 'file', parent: nav.parent,
+              size: f.size, data: reader.result, created: Date.now()
+            });
+            try {
+              saveFS(fs2);
+              used += f.size;
+              updateStorageBar();
+              render();
+              toast('Загружено: ' + name);
+            } catch (e) {
+              toast('Файл слишком большой для демо-хранилища браузера');
+            }
+          };
+          reader.readAsDataURL(f);
+        });
+        fileInput.value = '';
+      }
+
+      function downloadFile(id) {
+        var fs = getFS();
+        var it = findItem(fs, id);
+        if (!it || !it.data) return;
+        var a = document.createElement('a');
+        a.href = it.data;
+        a.download = it.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      function renameItem(id) {
+        var fs = getFS();
+        var it = findItem(fs, id);
+        if (!it) return;
+        var name = prompt('Новое имя:', it.name);
+        if (!name) return;
+        name = name.trim();
+        if (!name || name === it.name) return;
+        if (nameExists(fs, it.parent, name, it.id)) { toast('Такое имя уже занято'); return; }
+        it.name = name;
+        saveFS(fs);
+        render();
+        toast('Переименовано в «' + name + '»');
+      }
+
+      // Удаление = перенос в корзину (мягкое удаление)
+      function deleteItem(id) {
+        var fs = getFS();
+        var it = findItem(fs, id);
+        if (!it) return;
+
+        function moveToTrash(item, fsRef) {
+          item.prevParent = item.parent;
+          item.parent = 'trash';
+          if (item.type === 'folder') {
+            fsRef.items.forEach(function (ch) {
+              if (ch.parent === item.id) moveToTrash(ch, fsRef);
+            });
+          }
+        }
+        moveToTrash(it, fs);
+        saveFS(fs);
+        updateStorageBar();
+        render();
+        toast('«' + it.name + '» перемещено в корзину');
+      }
+
+      function restoreItem(id) {
+        var fs = getFS();
+        var it = findItem(fs, id);
+        if (!it) return;
+        var target = (it.prevParent !== undefined && it.prevParent !== 'trash') ? it.prevParent : null;
+        // если родитель удалён навсегда — кидаем в корень
+        if (target !== null && !findItem(fs, target)) target = null;
+        if (nameExists(fs, target, it.name, it.id)) {
+          it.name = it.name + ' (восстановлено)';
+        }
+        it.parent = target;
+        delete it.prevParent;
+        saveFS(fs);
+        updateStorageBar();
+        render();
+        toast('«' + it.name + '» восстановлено');
+      }
+
+      function purgeItem(id) {
+        var fs = getFS();
+        var it = findItem(fs, id);
+        if (!it) return;
+        if (!confirm('Удалить «' + it.name + '» навсегда? Это действие нельзя отменить.')) return;
+        var toRemove = [it.id];
+        if (it.type === 'folder') {
+          fs.items.forEach(function (ch) { if (ch.parent === it.id) toRemove.push(ch.id); });
+        }
+        // удаляем рекурсивно всех потомков
+        var changed = true;
+        while (changed) {
+          changed = false;
+          fs.items.forEach(function (x) {
+            if (toRemove.indexOf(x.id) < 0 && toRemove.indexOf(x.parent) >= 0) {
+              toRemove.push(x.id); changed = true;
+            }
+          });
+        }
+        fs.items = fs.items.filter(function (x) { return toRemove.indexOf(x.id) < 0; });
+        saveFS(fs);
+        updateStorageBar();
+        render();
+        toast('Удалено навсегда');
+      }
+
+      function emptyTrash() {
+        var fs = getFS();
+        if (!confirm('Очистить корзину полностью?')) return;
+        fs.items = fs.items.filter(function (it) { return it.parent !== 'trash'; });
+        // и всё, что лежало в удалённых папках корзины
+        var trashIds = fs.items.filter(function (it) { return it.parent === 'trash'; }).map(function (it) { return it.id; });
+        var changed = true;
+        while (changed) {
+          changed = false;
+          fs.items.forEach(function (x) {
+            if (trashIds.indexOf(x.id) < 0 && trashIds.indexOf(x.parent) >= 0) { trashIds.push(x.id); changed = true; }
+          });
+        }
+        fs.items = fs.items.filter(function (x) { return trashIds.indexOf(x.id) < 0; });
+        saveFS(fs);
+        updateStorageBar();
+        render();
+        toast('Корзина очищена');
+      }
+
+      /* ---------- События облака ---------- */
+      fileListEl.addEventListener('click', function (e) {
+        var el = e.target.closest('[data-act]');
+        if (!el) return;
+        var act = el.getAttribute('data-act');
+        var id = el.getAttribute('data-id');
+        if (act === 'open') openFolder(id);
+        else if (act === 'download') downloadFile(id);
+        else if (act === 'rename') renameItem(id);
+        else if (act === 'delete') deleteItem(id);
+        else if (act === 'restore') restoreItem(id);
+        else if (act === 'purge') purgeItem(id);
+      });
+      fileListEl.addEventListener('dblclick', function (e) {
+        var el = e.target.closest('.file-name[data-act="open"]');
+        if (el) openFolder(el.getAttribute('data-id'));
+      });
+      breadcrumbEl.addEventListener('click', function (e) {
+        var id = e.target.getAttribute && e.target.getAttribute('data-crumb');
+        if (id !== null && id !== undefined) goToCrumb(id === 'null' ? null : id);
+      });
+
+      newFolderBtn.addEventListener('click', createFolder);
+      uploadBtn.addEventListener('click', function () { fileInput.click(); });
+      fileInput.addEventListener('change', function () { uploadFiles(fileInput.files); });
+      emptyTrashBtn.addEventListener('click', emptyTrash);
+
+      searchInput.addEventListener('input', function () {
+        nav.search = searchInput.value;
+        render();
+      });
+
+      function syncSideLinks() {
+        sideLinks.forEach(function (l) {
+          l.classList.toggle('active', l.getAttribute('data-view') === nav.view);
+        });
+      }
+      sideLinks.forEach(function (l) {
+        l.addEventListener('click', function () {
+          nav.view = l.getAttribute('data-view');
+          nav.parent = null;
+          nav.search = ''; searchInput.value = '';
+          syncSideLinks();
+          render();
+        });
+      });
+
+      // Drag & drop файлов в текущую папку
+      document.addEventListener('dragover', function (e) { e.preventDefault(); });
+      document.addEventListener('drop', function (e) {
+        if (cloudView.hidden || nav.view === 'trash') return;
+        e.preventDefault();
+        if (e.dataTransfer && e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+      });
+
+      $('logoutBtn').addEventListener('click', function () {
+        clearSession();
+        currentUser = null;
+        cloudView.hidden = true;
+        document.body.classList.remove('in-cloud');
+        updateSessionNote();
+        window.scrollTo(0, 0);
+        showMsg('Вы вышли из аккаунта', '');
+      });
+      $('cloudLogo').addEventListener('click', function () {
+        nav.parent = null; nav.search = ''; searchInput.value = '';
+        render();
+        window.scrollTo(0, 0);
+      });
+
+      /* ---------- Вход в облако ---------- */
+      function enterCloud(nickname) {
+        currentUser = nickname;
+        fsKey = 'banana_fs_' + nickname.toLowerCase();
+        ensureFS(nickname);
+        nav = { parent: null, view: 'files', search: '' };
+        searchInput.value = '';
+        syncSideLinks();
+        $('userName').textContent = nickname;
+        $('userAvatar').textContent = nickname.charAt(0).toUpperCase();
+        updateStorageBar();
+        render();
+        cloudView.hidden = false;
+        document.body.classList.add('in-cloud');
+        window.scrollTo(0, 0);
+        toast('Добро пожаловать в BANANA, ' + nickname + '! 🍌');
+      }
+
+      /* ===================== АнимАЦИИ ПОСАДОЧНОЙ ===================== */
+      var revealEls = document.querySelectorAll('.reveal');
+      if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.15 });
+        revealEls.forEach(function (el) { observer.observe(el); });
+      } else {
+        revealEls.forEach(function (el) { el.classList.add('visible'); });
+      }
+
+      /* ===================== ИНИЦИАЛИЗАЦИЯ ===================== */
+      setMode('register');
+      updateSessionNote();
+      var sessionOnLoad = getSession();
+      if (sessionOnLoad) enterCloud(sessionOnLoad);
+    })();
+  </script>
+</body>
+</html>
