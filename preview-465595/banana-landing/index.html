@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BANANA — Backup And Network Attached Node Access</title>
+  <style>
+    :root {
+      --bg: #060606;
+      --fg: #FFFFFF;
+      --accent: #FDDA0D;
+      --muted: rgba(255, 255, 255, 0.6);
+      --card: #101010;
+      --border: rgba(255, 255, 255, 0.12);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; }
+
+    /* ---------- Header ---------- */
+    .header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 48px;
+      background: rgba(6, 6, 6, 0.75);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: 2px; }
+    .logo .dot {
+      width: 34px; height: 34px; border-radius: 50% 50% 50% 4px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      color: #060606; font-size: 18px; font-weight: 900;
+      transform: rotate(-8deg);
+    }
+    .nav { display: flex; gap: 28px; font-size: 14px; color: var(--muted); }
+    .nav a:hover { color: var(--accent); }
+    .header-actions { display: flex; gap: 12px; }
+
+    .btn {
+      border: none; border-radius: 10px; padding: 11px 22px;
+      font-weight: 700; font-size: 14px; transition: all .2s ease;
+    }
+    .btn-ghost { background: transparent; color: var(--fg); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-accent { background: var(--accent); color: #060606; }
+    .btn-accent:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(253, 218, 13, 0.35); }
+    .btn-block { width: 100%; padding: 14px; font-size: 15px; }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      text-align: center; padding: 140px 24px 80px; position: relative;
+    }
+    .hero::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(253, 218, 13, 0.12), transparent 60%),
+        radial-gradient(ellipse 40% 30% at 80% 90%, rgba(253, 218, 13, 0.06), transparent 60%);
+      pointer-events: none;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 7px 16px; font-size: 13px; color: var(--muted); margin-bottom: 28px;
+    }
+    .badge .pulse {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: .4; transform: scale(.7);} }
+    .hero h1 {
+      font-size: clamp(64px, 14vw, 168px); font-weight: 900; letter-spacing: 6px; line-height: 0.95;
+      background: linear-gradient(180deg, #FFFFFF 55%, var(--accent) 130%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero .expansion {
+      margin-top: 18px; font-size: clamp(14px, 2.2vw, 20px);
+      letter-spacing: 4px; text-transform: uppercase; color: var(--accent); font-weight: 600;
+    }
+    .hero .tagline {
+      margin-top: 26px; max-width: 620px; font-size: clamp(16px, 2vw, 19px);
+      color: var(--muted); line-height: 1.65;
+    }
+    .hero .cta { margin-top: 40px; display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+    .scroll-hint {
+      position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+      color: var(--muted); font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+      animation: bob 2s infinite ease-in-out;
+    }
+    @keyframes bob { 0%,100% { transform: translate(-50%, 0);} 50% { transform: translate(-50%, 8px);} }
+
+    /* ---------- Sections ---------- */
+    .section { padding: 110px 48px; max-width: 1200px; margin: 0 auto; }
+    .section-title { font-size: clamp(30px, 5vw, 48px); font-weight: 800; margin-bottom: 12px; }
+    .section-title .y { color: var(--accent); }
+    .section-sub { color: var(--muted); font-size: 17px; max-width: 640px; line-height: 1.6; margin-bottom: 56px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+      padding: 32px 28px; transition: all .25s ease;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-4px); }
+    .card .icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: rgba(253, 218, 13, 0.12); color: var(--accent);
+      display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 20px;
+    }
+    .card h3 { font-size: 19px; margin-bottom: 10px; }
+    .card p { color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+
+    /* stats */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 22px; margin-top: 70px; }
+    .stat {
+      text-align: center; padding: 34px 16px; border-radius: 18px;
+      background: linear-gradient(160deg, rgba(253,218,13,.07), transparent 55%);
+      border: 1px solid var(--border);
+    }
+    .stat .num { font-size: 40px; font-weight: 900; color: var(--accent); }
+    .stat .lbl { color: var(--muted); font-size: 13.5px; margin-top: 6px; letter-spacing: 1px; }
+
+    /* ---------- Auth ---------- */
+    .auth-wrap {
+      max-width: 460px; margin: 0 auto;
+      background: var(--card); border: 1px solid var(--border); border-radius: 24px;
+      padding: 40px 36px; position: relative; overflow: hidden;
+    }
+    .auth-wrap::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+    .tabs { display: flex; background: #0b0b0b; border-radius: 12px; padding: 5px; margin-bottom: 30px; }
+    .tab {
+      flex: 1; padding: 11px; border-radius: 9px; border: none; background: transparent;
+      color: var(--muted); font-weight: 700; font-size: 14px; transition: all .2s;
+    }
+    .tab.active { background: var(--accent); color: #060606; }
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 7px; letter-spacing: .5px; }
+    .field input {
+      width: 100%; padding: 13px 15px; border-radius: 11px;
+      background: #0b0b0b; border: 1px solid var(--border); color: var(--fg); font-size: 15px;
+      outline: none; transition: border .2s;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .form-note { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 18px; }
+    .form-note a { color: var(--accent); cursor: pointer; }
+    .auth-msg { margin-top: 16px; text-align: center; font-size: 14px; min-height: 20px; }
+    .auth-msg.ok { color: var(--accent); }
+    .auth-msg.err { color: #ff6b6b; }
+    .session-note {
+      margin-bottom: 20px; text-align: center; font-size: 13.5px; color: var(--muted);
+      border: 1px dashed var(--border); border-radius: 11px; padding: 10px;
+    }
+    .session-note b { color: var(--accent); }
+
+    /* ---------- Footer ---------- */
+    footer {
+      border-top: 1px solid var(--border); padding: 44px 48px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;
+      color: var(--muted); font-size: 13.5px;
+    }
+    .team { display: flex; gap: 10px; flex-wrap: wrap; }
+    .member {
+      border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 12.5px;
+    }
+    .member b { color: var(--accent); font-weight: 700; }
+
+    .reveal { opacity: 0; transform: translateY(30px); transition: all .7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    @media (max-width: 720px) {
+      .header { padding: 14px 18px; }
+      .nav { display: none; }
+      .section { padding: 70px 20px; }
+      footer { padding: 32px 20px; flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ---------- Header ---------- -->
+  <header class="header">
+    <a class="logo" href="#top">
+      <span class="dot">B</span> BANANA
+    </a>
+    <nav class="nav">
+      <a href="#about">О сервисе</a>
+      <a href="#features">Возможности</a>
+      <a href="#auth">Доступ</a>
+    </nav>
+    <div class="header-actions">
+      <button class="btn btn-ghost" data-auth-tab="login">Войти</button>
+      <button class="btn btn-accent" data-auth-tab="register">Регистрация</button>
+    </div>
+  </header>
+
+  <!-- ---------- Hero ---------- -->
+  <section class="hero" id="top">
+    <div class="badge"><span class="pulse"></span> Облачное хранилище нового поколения</div>
+    <h1>BANANA</h1>
+    <p class="expansion">Backup And Network Attached Node Access</p>
+    <p class="tagline">
+      Учебное облако колледжа для резервного копирования файлов и доступа к сетевым
+      узлам хранения. Быстро, надёжно и с душой — как спелый банан.
+    </p>
+    <div class="cta">
+      <button class="btn btn-accent" data-auth-tab="register">Создать аккаунт</button>
+      <a class="btn btn-ghost" href="#about">Узнать больше</a>
+    </div>
+    <div class="scroll-hint">листай вниз</div>
+  </section>
+
+  <!-- ---------- About / Features ---------- -->
+  <section class="section" id="about">
+    <h2 class="section-title reveal">Что такое <span class="y">BANANA</span>?</h2>
+    <p class="section-sub reveal">
+      BANANA — это студенческое облако, созданное командой из четырёх энтузиастов.
+      Мы объединили резервное копирование и доступ к сетевым узлам хранения
+      в один простой сервис для всего колледжа.
+    </p>
+    <div class="grid" id="features">
+      <div class="card reveal">
+        <div class="icon">💾</div>
+        <h3>Резервное копирование</h3>
+        <p>Автоматические бэкапы ваших файлов с версионированием. Никаких потерянных курсовых — всё под защитой.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🌐</div>
+        <h3>Сетевые узлы NAS</h3>
+        <p>Прямой доступ к сетевым хранилищам колледжа через единый узел. Подключайся из любой аудитории.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">⚡</div>
+        <h3>Мгновенная синхронизация</h3>
+        <p>Файлы обновляются на всех устройствах в реальном времени. Начал на паре — закончил дома.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🔒</div>
+        <h3>Безопасность</h3>
+        <p>Шифрование при передаче и хранении, разграничение прав доступа для студентов и преподавателей.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">📁</div>
+        <h3>Общие папки</h3>
+        <p>Совместная работа над проектами: общие директории для команд, групп и кружков колледжа.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon">🆓</div>
+        <h3>Бесплатно для студентов</h3>
+        <p>Учебный проект — учебные цены: базовые тарифы бесплатны для всех учащихся колледжа.</p>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat reveal"><div class="num">99.9%</div><div class="lbl">Аптайм сервиса</div></div>
+      <div class="stat reveal"><div class="num">10 ГБ</div><div class="lbl">Бесплатно каждому</div></div>
+      <div class="stat reveal"><div class="num">256-bit</div><div class="lbl">Шифрование AES</div></div>
+      <div class="stat reveal"><div class="num">4</div><div class="lbl">Разработчика в команде</div></div>
+    </div>
+  </section>
+
+  <!-- ---------- Auth ---------- -->
+  <section class="section" id="auth">
+    <h2 class="section-title reveal" style="text-align: center;">Начни прямо <span class="y">сейчас</span></h2>
+    <p class="section-sub reveal" style="text-align: center; margin: 0 auto 48px;">
+      Зарегистрируйся по никнейму и получи 10 ГБ облачного пространства бесплатно.
+    </p>
+    <div class="auth-wrap reveal">
+      <div class="tabs">
+        <button class="tab active" data-tab="register" type="button">Регистрация</button>
+        <button class="tab" data-tab="login" type="button">Вход</button>
+      </div>
+      <div class="session-note" id="sessionNote" hidden></div>
+      <form id="authForm" novalidate>
+        <div class="field">
+          <label for="nickname">Никнейм</label>
+          <input type="text" id="nickname" placeholder="banan_king" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="password">Пароль (минимум 8 символов)</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button class="btn btn-accent btn-block" type="submit" id="submitBtn">Создать аккаунт</button>
+      </form>
+      <div class="auth-msg" id="authMsg"></div>
+      <p class="form-note" id="formNote"></p>
+    </div>
+  </section>
+
+  <!-- ---------- Footer ---------- -->
+  <footer>
+    <div>© 2026 BANANA · Backup And Network Attached Node Access · Учебный проект колледжа</div>
+    <div class="team">
+      <span class="member"><b>Ты</b> — посадочная страница</span>
+      <span class="member"><b>Напарник 1</b> — бэкенд</span>
+      <span class="member"><b>Напарник 2</b> — фронтенд</span>
+      <span class="member"><b>Напарник 3</b> — инфраструктура</span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      'use strict';
+
+      /* ================= Константы и хранилище ================= */
+      var USERS_KEY = 'banana_users';
+      var SESSION_KEY = 'banana_session';
+      var MIN_PASSWORD = 8;
+      var MIN_NICKNAME = 3;
+
+      // Демо-хэш пароля. На настоящем бэкенде пароль хэшируется
+      // через bcrypt/argon2 — здесь только чтобы не хранить его открытым текстом.
+      function hashPassword(str) {
+        var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+        for (var i = 0; i < str.length; i++) {
+          var ch = str.charCodeAt(i);
+          h1 = Math.imul(h1 ^ ch, 2654435761);
+          h2 = Math.imul(h2 ^ ch, 1597334677);
+        }
+        h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+        h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+        return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16);
+      }
+
+      function getUsers() {
+        try {
+          return JSON.parse(localStorage.getItem(USERS_KEY)) || {};
+        } catch (e) {
+          return {};
+        }
+      }
+
+      /* ================= Элементы ================= */
+      var form = document.getElementById('authForm');
+      var nicknameInput = document.getElementById('nickname');
+      var passwordInput = document.getElementById('password');
+      var submitBtn = document.getElementById('submitBtn');
+      var msgEl = document.getElementById('authMsg');
+      var noteEl = document.getElementById('formNote');
+      var sessionNote = document.getElementById('sessionNote');
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+
+      var mode = 'register'; // 'register' | 'login'
+
+      /* ================= Переключение вкладок ================= */
+      function setMode(newMode) {
+        mode = newMode;
+        tabs.forEach(function (t) {
+          t.classList.toggle('active', t.getAttribute('data-tab') === mode);
+        });
+        submitBtn.textContent = mode === 'register' ? 'Создать аккаунт' : 'Войти';
+        noteEl.innerHTML = mode === 'register'
+          ? 'Уже есть аккаунт? <a data-goto="login">Войти</a>'
+          : 'Нет аккаунта? <a data-goto="register">Зарегистрироваться</a>';
+        showMsg('', '');
+      }
+
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () {
+          setMode(t.getAttribute('data-tab'));
+        });
+      });
+
+      noteEl.addEventListener('click', function (e) {
+        var goto = e.target.getAttribute && e.target.getAttribute('data-goto');
+        if (goto) setMode(goto);
+      });
+
+      /* ================= Кнопки в шапке и hero ================= */
+      document.querySelectorAll('[data-auth-tab]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setMode(btn.getAttribute('data-auth-tab'));
+          document.getElementById('auth').scrollIntoView({ behavior: 'smooth' });
+        });
+      });
+
+      /* ================= Сообщения и сессия ================= */
+      function showMsg(text, type) {
+        msgEl.textContent = text;
+        msgEl.className = 'auth-msg' + (type ? ' ' + type : '');
+      }
+
+      function updateSessionNote() {
+        var nick = localStorage.getItem(SESSION_KEY);
+        if (nick) {
+          sessionNote.hidden = false;
+          sessionNote.innerHTML = 'Вы вошли как <b>' + escapeHtml(nick) + '</b> · <a data-goto="logout" style="color: var(--accent); cursor: pointer;">выйти</a>';
+        } else {
+          sessionNote.hidden = true;
+          sessionNote.innerHTML = '';
+        }
+      }
+
+      sessionNote.addEventListener('click', function (e) {
+        if (e.target.getAttribute && e.target.getAttribute('data-goto') === 'logout') {
+          localStorage.removeItem(SESSION_KEY);
+          updateSessionNote();
+          showMsg('Вы вышли из аккаунта', '');
+        }
+      });
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      /* ================= Отправка формы ================= */
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var nickname = nicknameInput.value.trim();
+        var password = passwordInput.value;
+
+        if (!nickname || !password) {
+          showMsg('Заполните все поля', 'err');
+          return;
+        }
+        if (nickname.length < MIN_NICKNAME) {
+          showMsg('Никнейм должен быть не короче ' + MIN_NICKNAME + ' символов', 'err');
+          return;
+        }
+        if (password.length < MIN_PASSWORD) {
+          showMsg('Пароль должен быть не короче ' + MIN_PASSWORD + ' символов', 'err');
+          return;
+        }
+
+        var users = getUsers();
+        var key = nickname.toLowerCase();
+
+        if (mode === 'register') {
+          if (users[key]) {
+            showMsg('Такой никнейм уже занят — придумай другой', 'err');
+            return;
+          }
+          users[key] = {
+            nickname: nickname,
+            passwordHash: hashPassword(password),
+            createdAt: Date.now()
+          };
+          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+          localStorage.setItem(SESSION_KEY, nickname);
+          showMsg('Добро пожаловать в BANANA, ' + nickname + '! 🍌', 'ok');
+        } else {
+          var user = users[key];
+          if (!user) {
+            showMsg('Пользователь с таким никнеймом не найден', 'err');
+            return;
+          }
+          if (user.passwordHash !== hashPassword(password)) {
+            showMsg('Неверный пароль', 'err');
+            return;
+          }
+          localStorage.setItem(SESSION_KEY, user.nickname);
+          showMsg('С возвращением, ' + user.nickname + '! 🍌', 'ok');
+        }
+
+        form.reset();
+        updateSessionNote();
+      });
+
+      /* ================= Анимация появления при скролле ================= */
+      var revealEls = document.querySelectorAll('.reveal');
+      if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.15 });
+        revealEls.forEach(function (el) { observer.observe(el); });
+      } else {
+        revealEls.forEach(function (el) { el.classList.add('visible'); });
+      }
+
+      /* ================= Инициализация ================= */
+      setMode('register');
+      updateSessionNote();
+    })();
+  </script>
+</body>
+</html>
