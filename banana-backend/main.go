@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -21,6 +22,7 @@ import (
 	"time"
 )
 
+// ===== Ошибки =====
 var (
 	ErrEmailExists        = errors.New("email already exists")
 	ErrInvalidCredentials = errors.New("invalid credentials")
@@ -28,6 +30,7 @@ var (
 	ErrInvalidParent      = errors.New("invalid parent folder")
 )
 
+// ===== Модели =====
 type User struct {
 	ID           string    `json:"id"`
 	Email        string    `json:"email"`
@@ -41,18 +44,40 @@ type Folder struct {
 	UserID    string    `json:"userID"`
 	Name      string    `json:"name"`
 	ParentID  string    `json:"parentID"`
+	Size      int64     `json:"size"`
+	FileCount int       `json:"fileCount"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type FileVersion struct {
+	Version    int       `json:"version"`
+	StorageKey string    `json:"storageKey"`
+	Size       int64     `json:"size"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
 type FileMeta struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"userID"`
-	Name        string    `json:"name"`
-	Size        int64     `json:"size"`
-	ContentType string    `json:"contentType"`
-	StorageKey  string    `json:"storageKey"`
-	FolderID    string    `json:"folderID"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID          string        `json:"id"`
+	UserID      string        `json:"userID"`
+	Name        string        `json:"name"`
+	Size        int64         `json:"size"`
+	ContentType string        `json:"contentType"`
+	FileType    string        `json:"fileType"`
+	StorageKey  string        `json:"storageKey"`
+	FolderID    string        `json:"folderID"`
+	Versions    []FileVersion `json:"versions"`
+	CreatedAt   time.Time     `json:"createdAt"`
+	UpdatedAt   time.Time     `json:"updatedAt"`
+}
+
+type TrashItem struct {
+	ID             string    `json:"id"`
+	UserID         string    `json:"userID"`
+	OriginalName   string    `json:"originalName"`
+	OriginalFolder string    `json:"originalFolder"`
+	StorageKey     string    `json:"storageKey"`
+	Size           int64     `json:"size"`
+	DeletedAt      time.Time `json:"deletedAt"`
 }
 
 type ShareLink struct {
@@ -70,10 +95,12 @@ type Session struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+// ===== База и Store =====
 type DB struct {
 	Users      map[string]User      `json:"users"`
 	Files      map[string]FileMeta  `json:"files"`
 	Folders    map[string]Folder    `json:"folders"`
+	Trash      map[string]TrashItem `json:"trash"`
 	ShareLinks map[string]ShareLink `json:"shareLinks"`
 	EmailIndex map[string]string    `json:"emailIndex"`
 }
@@ -86,11 +113,13 @@ type Store struct {
 	dbPath   string
 }
 
+// ===== Ответы фронтенду =====
 type fileResponse struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Size        int64     `json:"size"`
 	ContentType string    `json:"contentType"`
+	FileType    string    `json:"fileType"`
 	FolderID    string    `json:"folderID"`
 	CreatedAt   time.Time `json:"createdAt"`
 	DownloadURL string    `json:"downloadUrl"`
@@ -100,6 +129,8 @@ type folderResponse struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	ParentID  string    `json:"parentID"`
+	Size      int64     `json:"size"`
+	FileCount int       `json:"fileCount"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -117,6 +148,7 @@ type folderItemsResponse struct {
 	Folders []folderResponse `json:"folders"`
 }
 
+// ===== main =====
 func main() {
 	dataDir := getEnv("BANANA_DATA_DIR", "./data")
 	port := getEnv("BANANA_PORT", "8080")
@@ -125,6 +157,11 @@ func main() {
 	store, err := NewStore(dataDir)
 	if err != nil {
 		slog.Error("failed to init store", "error", err)
+		os.Exit(1)
+	}
+
+	if err := os.MkdirAll(filepath.Join(dataDir, "trash"), 0o750); err != nil {
+		slog.Error("failed to init trash dir", "error", err)
 		os.Exit(1)
 	}
 
@@ -138,10 +175,12 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	// Авторизация
 	mux.HandleFunc("POST /api/v1/auth/register", handleRegister(store))
 	mux.HandleFunc("POST /api/v1/auth/login", handleLogin(store))
 	mux.HandleFunc("POST /api/v1/auth/logout", handleLogout(store))
 
+	// Папки
 	mux.Handle("POST /api/v1/folders", requireAuth(store, handleCreateFolder(store)))
 	mux.Handle("GET /api/v1/folders", requireAuth(store, handleListFolders(store)))
 	mux.Handle("GET /api/v1/folders/{id}", requireAuth(store, handleGetFolder(store)))
@@ -149,6 +188,7 @@ func main() {
 	mux.Handle("PATCH /api/v1/folders/{id}", requireAuth(store, handleRenameFolder(store)))
 	mux.Handle("DELETE /api/v1/folders/{id}", requireAuth(store, handleDeleteFolder(store)))
 
+	// Файлы
 	mux.Handle("GET /api/v1/files", requireAuth(store, handleListFiles(store)))
 	mux.Handle("POST /api/v1/files", requireAuth(store, handleUploadFile(store, maxUploadBytes)))
 	mux.Handle("GET /api/v1/files/{id}", requireAuth(store, handleGetFile(store)))
@@ -156,10 +196,18 @@ func main() {
 	mux.Handle("DELETE /api/v1/files/{id}", requireAuth(store, handleDeleteFile(store)))
 	mux.Handle("PATCH /api/v1/files/{id}/move", requireAuth(store, handleMoveFile(store)))
 
+	// Корзина
+	mux.Handle("GET /api/v1/trash", requireAuth(store, handleListTrash(store)))
+	mux.Handle("POST /api/v1/trash/{id}/restore", requireAuth(store, handleRestoreTrash(store)))
+	mux.Handle("DELETE /api/v1/trash/{id}", requireAuth(store, handleDeleteTrash(store)))
+
+	// Общий доступ
 	mux.Handle("POST /api/v1/share", requireAuth(store, handleCreateShareLink(store)))
 	mux.Handle("GET /api/v1/share/{token}", handleAccessSharedResource(store))
 	mux.Handle("GET /api/v1/share/{token}/download", handleDownloadSharedFile(store))
 	mux.Handle("DELETE /api/v1/share/{id}", requireAuth(store, handleDeleteShareLink(store)))
+
+	mux.HandleFunc("/", handleIndex)
 
 	handler := logMiddleware(corsMiddleware(mux))
 
@@ -170,6 +218,7 @@ func main() {
 	}
 }
 
+// ===== Store =====
 func NewStore(dataDir string) (*Store, error) {
 	filesDir := filepath.Join(dataDir, "files")
 	if err := os.MkdirAll(filesDir, 0o750); err != nil {
@@ -181,6 +230,7 @@ func NewStore(dataDir string) (*Store, error) {
 			Users:      make(map[string]User),
 			Files:      make(map[string]FileMeta),
 			Folders:    make(map[string]Folder),
+			Trash:      make(map[string]TrashItem),
 			ShareLinks: make(map[string]ShareLink),
 			EmailIndex: make(map[string]string),
 		},
@@ -202,6 +252,9 @@ func NewStore(dataDir string) (*Store, error) {
 	if s.db.Folders == nil {
 		s.db.Folders = make(map[string]Folder)
 	}
+	if s.db.Trash == nil {
+		s.db.Trash = make(map[string]TrashItem)
+	}
 	if s.db.ShareLinks == nil {
 		s.db.ShareLinks = make(map[string]ShareLink)
 	}
@@ -214,6 +267,10 @@ func NewStore(dataDir string) (*Store, error) {
 
 func (s *Store) filesDir() string {
 	return filepath.Join(s.dataDir, "files")
+}
+
+func (s *Store) trashDir() string {
+	return filepath.Join(s.dataDir, "trash")
 }
 
 func (s *Store) load() error {
@@ -239,6 +296,7 @@ func (s *Store) saveLocked() error {
 	return os.Rename(tmpPath, s.dbPath)
 }
 
+// ===== Пользователи =====
 func (s *Store) CreateUser(email, password string) (User, error) {
 	email = normalizeEmail(email)
 	salt := randomHex(16)
@@ -329,6 +387,7 @@ func (s *Store) DeleteSession(token string) {
 	s.mu.Unlock()
 }
 
+// ===== Папки =====
 func (s *Store) CreateFolder(userID, name, parentID string) (Folder, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -427,6 +486,7 @@ func (s *Store) DeleteFolder(folderID, userID string) error {
 		return ErrNotFound
 	}
 
+	// Удаляем файлы в папке
 	for id, file := range s.db.Files {
 		if file.FolderID == folderID {
 			_ = os.Remove(filepath.Join(s.filesDir(), file.StorageKey))
@@ -434,6 +494,7 @@ func (s *Store) DeleteFolder(folderID, userID string) error {
 		}
 	}
 
+	// Удаляем подпапки
 	for id, subfolder := range s.db.Folders {
 		if subfolder.ParentID == folderID {
 			delete(s.db.Folders, id)
@@ -460,7 +521,14 @@ func (s *Store) GetFolderItems(userID, folderID string) folderItemsResponse {
 
 	for _, folder := range s.db.Folders {
 		if folder.UserID == userID && folder.ParentID == folderID {
-			folders = append(folders, toFolderResponse(folder))
+			// Считаем размер и количество файлов
+			var size int64
+			var count int
+			s.countFilesRecursiveLocked(folder.ID, &size, &count)
+			fr := toFolderResponse(folder)
+			fr.Size = size
+			fr.FileCount = count
+			folders = append(folders, fr)
 		}
 	}
 
@@ -475,10 +543,81 @@ func (s *Store) GetFolderItems(userID, folderID string) folderItemsResponse {
 	return folderItemsResponse{Files: files, Folders: folders}
 }
 
+func (s *Store) countFilesRecursiveLocked(folderID string, totalSize *int64, fileCount *int) {
+	for _, file := range s.db.Files {
+		if file.FolderID == folderID {
+			*totalSize += file.Size
+			*fileCount++
+		}
+	}
+	for _, folder := range s.db.Folders {
+		if folder.ParentID == folderID {
+			s.countFilesRecursiveLocked(folder.ID, totalSize, fileCount)
+		}
+	}
+}
+
+// ===== Проверка дубликатов =====
+func (s *Store) CheckDuplicateName(userID, parentID, name, excludeID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	name = strings.TrimSpace(name)
+
+	for _, folder := range s.db.Folders {
+		if folder.UserID == userID && folder.ParentID == parentID && folder.Name == name && folder.ID != excludeID {
+			return true
+		}
+	}
+
+	for _, file := range s.db.Files {
+		if file.UserID == userID && file.FolderID == parentID && file.Name == name && file.ID != excludeID {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *Store) GenerateUniqueName(userID, parentID, name, excludeID string) string {
+	if !s.CheckDuplicateName(userID, parentID, name, excludeID) {
+		return name
+	}
+
+	ext := filepath.Ext(name)
+	baseName := strings.TrimSuffix(name, ext)
+
+	for i := 1; i <= 1000; i++ {
+		newName := fmt.Sprintf("%s (%d)%s", baseName, i, ext)
+		if !s.CheckDuplicateName(userID, parentID, newName, excludeID) {
+			return newName
+		}
+	}
+
+	return fmt.Sprintf("%s_%d%s", baseName, time.Now().Unix(), ext)
+}
+
+// ===== Файлы =====
 func (s *Store) AddFile(file FileMeta) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if existing, ok := s.db.Files[file.ID]; ok {
+		newVersion := FileVersion{
+			Version:    len(existing.Versions) + 1,
+			StorageKey: file.Versions[0].StorageKey,
+			Size:       file.Size,
+			CreatedAt:  time.Now().UTC(),
+		}
+		file.Versions = append(existing.Versions, newVersion)
+		file.CreatedAt = existing.CreatedAt
+	} else {
+		file.Versions = []FileVersion{{
+			Version: 1, StorageKey: file.Versions[0].StorageKey, Size: file.Size, CreatedAt: file.CreatedAt,
+		}}
+	}
+
+	file.UpdatedAt = time.Now().UTC()
 	s.db.Files[file.ID] = file
 
 	return s.saveLocked()
@@ -496,6 +635,9 @@ func (s *Store) ListFiles(userID, folderID string) []FileMeta {
 	}
 
 	sort.Slice(files, func(i, j int) bool {
+		if files[i].FileType != files[j].FileType {
+			return files[i].FileType < files[j].FileType
+		}
 		return files[i].CreatedAt.After(files[j].CreatedAt)
 	})
 
@@ -573,6 +715,7 @@ func (s *Store) MoveFile(fileID, userID, newFolderID string) (FileMeta, error) {
 	}
 
 	file.FolderID = newFolderID
+	file.UpdatedAt = time.Now().UTC()
 	s.db.Files[fileID] = file
 
 	if err := s.saveLocked(); err != nil {
@@ -582,6 +725,112 @@ func (s *Store) MoveFile(fileID, userID, newFolderID string) (FileMeta, error) {
 	return file, nil
 }
 
+// ===== Корзина =====
+func (s *Store) MoveToTrash(fileID, userID, trashStorageKey string) (TrashItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	file, ok := s.db.Files[fileID]
+	if !ok || file.UserID != userID {
+		return TrashItem{}, ErrNotFound
+	}
+
+	trashItem := TrashItem{
+		ID:             "trash_" + fileID,
+		UserID:         userID,
+		OriginalName:   file.Name,
+		OriginalFolder: file.FolderID,
+		StorageKey:     trashStorageKey,
+		Size:           file.Size,
+		DeletedAt:      time.Now().UTC(),
+	}
+
+	s.db.Trash[trashItem.ID] = trashItem
+	delete(s.db.Files, fileID)
+
+	if err := s.saveLocked(); err != nil {
+		return TrashItem{}, err
+	}
+
+	return trashItem, nil
+}
+
+func (s *Store) ListTrash(userID string) []TrashItem {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var items []TrashItem
+	for _, item := range s.db.Trash {
+		if item.UserID == userID {
+			items = append(items, item)
+		}
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].DeletedAt.After(items[j].DeletedAt)
+	})
+
+	return items
+}
+
+func (s *Store) GetTrashItem(trashID, userID string) (TrashItem, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	item, ok := s.db.Trash[trashID]
+	if !ok || item.UserID != userID {
+		return TrashItem{}, ErrNotFound
+	}
+
+	return item, nil
+}
+
+func (s *Store) RestoreFromTrash(trashID, userID, newStorageKey string) (FileMeta, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	trash, ok := s.db.Trash[trashID]
+	if !ok || trash.UserID != userID {
+		return FileMeta{}, ErrNotFound
+	}
+
+	file := FileMeta{
+		ID:          strings.TrimPrefix(trash.ID, "trash_"),
+		UserID:      userID,
+		Name:        trash.OriginalName,
+		Size:        trash.Size,
+		FolderID:    trash.OriginalFolder,
+		StorageKey:  newStorageKey,
+		ContentType: "application/octet-stream",
+		Versions:    []FileVersion{{Version: 1, StorageKey: newStorageKey, Size: trash.Size, CreatedAt: trash.DeletedAt}},
+		CreatedAt:   trash.DeletedAt,
+		UpdatedAt:   time.Now().UTC(),
+	}
+
+	s.db.Files[file.ID] = file
+	delete(s.db.Trash, trashID)
+
+	if err := s.saveLocked(); err != nil {
+		return FileMeta{}, err
+	}
+
+	return file, nil
+}
+
+func (s *Store) DeleteTrashItem(trashID, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	item, ok := s.db.Trash[trashID]
+	if !ok || item.UserID != userID {
+		return ErrNotFound
+	}
+
+	delete(s.db.Trash, trashID)
+	return s.saveLocked()
+}
+
+// ===== Общий доступ =====
 func (s *Store) CreateShareLink(userID, resourceType, resourceID string) (ShareLink, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -648,6 +897,7 @@ func (s *Store) DeleteShareLink(linkID, userID string) error {
 	return s.saveLocked()
 }
 
+// ===== Handlers: auth =====
 func handleRegister(store *Store) http.HandlerFunc {
 	type req struct {
 		Email    string `json:"email"`
@@ -727,6 +977,7 @@ func handleLogout(store *Store) http.HandlerFunc {
 	}
 }
 
+// ===== Handlers: folders =====
 func handleCreateFolder(store *Store) http.HandlerFunc {
 	type req struct {
 		Name     string `json:"name"`
@@ -744,6 +995,12 @@ func handleCreateFolder(store *Store) http.HandlerFunc {
 
 		if strings.TrimSpace(q.Name) == "" {
 			writeError(w, http.StatusBadRequest, "folder name is required")
+			return
+		}
+
+		// Проверка дубликатов
+		if store.CheckDuplicateName(userID, q.ParentID, q.Name, "") {
+			writeError(w, http.StatusConflict, "folder with this name already exists")
 			return
 		}
 
@@ -765,15 +1022,13 @@ func handleListFolders(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		parentID := r.URL.Query().Get("parentID")
-		// "root" означает корневую папку (пустой parentID)
-		if parentID == "root" {
-			parentID = ""
-		}
+
 		folders := store.ListFolders(userID, parentID)
 		items := make([]folderResponse, 0, len(folders))
 		for _, f := range folders {
 			items = append(items, toFolderResponse(f))
 		}
+
 		writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
 	}
 }
@@ -797,10 +1052,12 @@ func handleGetFolderItems(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.PathValue("id")
-		// "root" означает корневую папку (пустой parentID)
+
+		// "root" = корневая папка (пустой ID)
 		if folderID == "root" {
 			folderID = ""
 		}
+
 		items := store.GetFolderItems(userID, folderID)
 		writeJSON(w, http.StatusOK, items)
 	}
@@ -851,19 +1108,41 @@ func handleDeleteFolder(store *Store) http.HandlerFunc {
 	}
 }
 
+// ===== Handlers: files =====
+func determineFileType(contentType, filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	if strings.HasPrefix(contentType, "image/") {
+		return "image"
+	}
+	if strings.HasPrefix(contentType, "video/") {
+		return "video"
+	}
+	if strings.HasPrefix(contentType, "audio/") {
+		return "audio"
+	}
+	if strings.Contains(contentType, "pdf") || ext == ".doc" || ext == ".docx" || ext == ".ppt" || ext == ".pptx" {
+		return "document"
+	}
+	if ext == ".txt" || ext == ".go" || ext == ".py" || ext == ".js" || ext == ".html" || ext == ".json" || ext == ".css" || ext == ".md" {
+		return "code"
+	}
+	if ext == ".zip" || ext == ".rar" || ext == ".gz" || ext == ".7z" || ext == ".tar" {
+		return "archive"
+	}
+	return "other"
+}
+
 func handleListFiles(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.URL.Query().Get("folderID")
-		// "root" означает корневую папку (пустой folderID)
-		if folderID == "root" {
-			folderID = ""
-		}
+
 		files := store.ListFiles(userID, folderID)
 		items := make([]fileResponse, 0, len(files))
 		for _, f := range files {
 			items = append(items, toFileResponse(f))
 		}
+
 		writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
 	}
 }
@@ -919,10 +1198,12 @@ func handleUploadFile(store *Store, maxUploadBytes int64) http.HandlerFunc {
 			return
 		}
 
-		name := safeFilename(header.Filename)
-		if name == "download" && strings.TrimSpace(header.Filename) == "" {
-			name = "file-" + fileID
+		// Автогенерация уникального имени (как в Windows: (1), (2) и т.д.)
+		originalName := safeFilename(header.Filename)
+		if originalName == "download" && strings.TrimSpace(header.Filename) == "" {
+			originalName = "file-" + fileID
 		}
+		uniqueName := store.GenerateUniqueName(userID, folderID, originalName, "")
 
 		contentType := header.Header.Get("Content-Type")
 		if contentType == "" {
@@ -930,9 +1211,16 @@ func handleUploadFile(store *Store, maxUploadBytes int64) http.HandlerFunc {
 		}
 
 		meta := FileMeta{
-			ID: fileID, UserID: userID, Name: name, Size: size,
-			ContentType: contentType, StorageKey: storageKey,
-			FolderID: folderID, CreatedAt: time.Now().UTC(),
+			ID:          fileID,
+			UserID:      userID,
+			Name:        uniqueName,
+			Size:        size,
+			ContentType: contentType,
+			FileType:    determineFileType(contentType, uniqueName),
+			StorageKey:  storageKey,
+			FolderID:    folderID,
+			Versions:    []FileVersion{{StorageKey: storageKey, Size: size}},
+			CreatedAt:   time.Now().UTC(),
 		}
 
 		if err := store.AddFile(meta); err != nil {
@@ -990,13 +1278,58 @@ func handleDeleteFile(store *Store) http.HandlerFunc {
 		userID := userIDFromContext(r.Context())
 		fileID := r.PathValue("id")
 
-		file, err := store.DeleteFile(fileID, userID)
+		file, err := store.GetFileForUser(fileID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "file not found")
 			return
 		}
 
-		_ = os.Remove(filepath.Join(store.filesDir(), file.StorageKey))
+		// Сжимаем файл и перемещаем в корзину (дедупликация + сжатие)
+		srcPath := filepath.Join(store.filesDir(), file.StorageKey)
+		srcFile, err := os.Open(srcPath)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "cannot open file for trash")
+			return
+		}
+
+		trashKey := file.StorageKey + ".gz"
+		trashPath := filepath.Join(store.trashDir(), trashKey)
+
+		gzFile, err := os.Create(trashPath)
+		if err != nil {
+			srcFile.Close()
+			writeError(w, http.StatusInternalServerError, "cannot create trash file")
+			return
+		}
+
+		gzWriter := gzip.NewWriter(gzFile)
+		if _, err := io.Copy(gzWriter, srcFile); err != nil {
+			gzWriter.Close()
+			gzFile.Close()
+			srcFile.Close()
+			os.Remove(trashPath)
+			writeError(w, http.StatusInternalServerError, "cannot compress file")
+			return
+		}
+		gzWriter.Close()
+		gzFile.Close()
+		srcFile.Close()
+
+		// Удаляем оригинал из files
+		deletedFile, err := store.DeleteFile(fileID, userID)
+		if err != nil {
+			os.Remove(trashPath)
+			writeError(w, http.StatusNotFound, "file not found")
+			return
+		}
+
+		os.Remove(srcPath)
+
+		// Добавляем в trash
+		if _, err := store.MoveToTrash(deletedFile.ID, userID, trashKey); err != nil {
+			// Восстановим файл если не удалось добавить в корзину
+			slog.Error("failed to add to trash", "error", err)
+		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
 	}
@@ -1031,6 +1364,98 @@ func handleMoveFile(store *Store) http.HandlerFunc {
 	}
 }
 
+// ===== Handlers: trash =====
+func handleListTrash(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := userIDFromContext(r.Context())
+		items := store.ListTrash(userID)
+		writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
+	}
+}
+
+func handleRestoreTrash(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := userIDFromContext(r.Context())
+		trashID := r.PathValue("id")
+
+		trash, err := store.GetTrashItem(trashID, userID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "trash item not found")
+			return
+		}
+
+		// Распаковываем .gz обратно в files
+		trashPath := filepath.Join(store.trashDir(), trash.StorageKey)
+		gzFile, err := os.Open(trashPath)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "cannot open trash file")
+			return
+		}
+		defer gzFile.Close()
+
+		gzReader, err := gzip.NewReader(gzFile)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "cannot decompress trash file")
+			return
+		}
+		defer gzReader.Close()
+
+		newFileID := randomHex(16)
+		newPath := filepath.Join(store.filesDir(), newFileID)
+
+		out, err := os.Create(newPath)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "cannot create file")
+			return
+		}
+
+		if _, err := io.Copy(out, gzReader); err != nil {
+			out.Close()
+			os.Remove(newPath)
+			writeError(w, http.StatusInternalServerError, "cannot restore file")
+			return
+		}
+		out.Close()
+
+		// Удаляем сжатый файл из корзины
+		os.Remove(trashPath)
+
+		// Восстанавливаем в БД
+		restored, err := store.RestoreFromTrash(trashID, userID, newFileID)
+		if err != nil {
+			os.Remove(newPath)
+			writeError(w, http.StatusInternalServerError, "cannot restore metadata")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, toFileResponse(restored))
+	}
+}
+
+func handleDeleteTrash(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := userIDFromContext(r.Context())
+		trashID := r.PathValue("id")
+
+		trash, err := store.GetTrashItem(trashID, userID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "trash item not found")
+			return
+		}
+
+		// Удаляем сжатый файл физически
+		_ = os.Remove(filepath.Join(store.trashDir(), trash.StorageKey))
+
+		if err := store.DeleteTrashItem(trashID, userID); err != nil {
+			writeError(w, http.StatusNotFound, "trash item not found")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+	}
+}
+
+// ===== Handlers: share =====
 func handleCreateShareLink(store *Store) http.HandlerFunc {
 	type req struct {
 		ResourceType string `json:"resourceType"`
@@ -1167,6 +1592,7 @@ func handleDeleteShareLink(store *Store) http.HandlerFunc {
 	}
 }
 
+// ===== Middleware =====
 func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigin := os.Getenv("BANANA_FRONTEND_ORIGIN")
 	if allowedOrigin == "" {
@@ -1231,6 +1657,7 @@ func userIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+// ===== Helpers =====
 func bearerToken(r *http.Request) string {
 	header := r.Header.Get("Authorization")
 	if header == "" {
@@ -1286,6 +1713,7 @@ func toFileResponse(file FileMeta) fileResponse {
 		Name:        file.Name,
 		Size:        file.Size,
 		ContentType: file.ContentType,
+		FileType:    file.FileType,
 		FolderID:    file.FolderID,
 		CreatedAt:   file.CreatedAt,
 		DownloadURL: "/api/v1/files/" + file.ID + "/download",
@@ -1372,6 +1800,7 @@ func getEnvInt64(key string, defaultValue int64) int64 {
 	return parsed
 }
 
+// ===== Веб-страница =====
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("index.html")
 	if err != nil {
