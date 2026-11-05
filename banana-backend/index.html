@@ -1,298 +1,705 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Banana Cloud Storage</title>
 <style>
-body{font-family:Arial,sans-serif;margin:0;background:#0f172a;color:#e5e7eb}
-.container{max-width:1080px;margin:0 auto;padding:24px}
-h1{margin-top:0;color:#facc15}
-.card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:16px;margin-bottom:16px}
-input,button,select{padding:9px 11px;border-radius:8px;border:1px solid #374151;background:#020617;color:#e5e7eb;margin:4px}
-button{cursor:pointer;background:#1d4ed8;border-color:#2563eb;color:#fff}
-button:hover{background:#2563eb}
-button.gray{background:#374151;border-color:#4b5563}
-table{width:100%;border-collapse:collapse;margin-top:10px}
-th,td{border-bottom:1px solid #1f2937;padding:9px;text-align:left;vertical-align:middle}
-#status{margin-top:12px;padding:11px;border-radius:8px;background:#020617;border:1px solid #1f2937;min-height:20px;white-space:pre-wrap}
-.small{color:#94a3b8;font-size:13px}
-.crumbs span{color:#facc15;cursor:pointer;margin-right:6px}
-.crumbs span.last{color:#e5e7eb;cursor:default}
-.sharebox{margin-top:10px;padding:10px;border:1px dashed #374151;border-radius:8px;display:none;word-break:break-all}
-.folderlink{color:#60a5fa;cursor:pointer;text-decoration:underline}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f1115;
+    color: #e6e8ee;
+    font-size: 14px;
+  }
+  button, input, select { font-family: inherit; font-size: 14px; }
+  a { color: #ffd23f; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .auth-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .auth-card {
+    background: #161a22;
+    border: 1px solid #2a3140;
+    border-radius: 14px;
+    padding: 32px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .logo {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .logo span { color: #ffd23f; }
+  .auth-sub { color: #8a93a6; margin-bottom: 24px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #1d222d; padding: 4px; border-radius: 10px; }
+  .tab {
+    flex: 1; padding: 10px; text-align: center; border-radius: 8px; cursor: pointer;
+    color: #8a93a6; font-weight: 500; transition: .15s;
+  }
+  .tab.active { background: #161a22; color: #e6e8ee; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; margin-bottom: 6px; color: #8a93a6; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .field input {
+    width: 100%; padding: 11px 14px; background: #1d222d; border: 1px solid #2a3140;
+    border-radius: 8px; color: #e6e8ee; outline: none;
+  }
+  .field input:focus { border-color: #ffd23f; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 10px 16px; border-radius: 8px; border: 1px solid transparent;
+    cursor: pointer; font-weight: 500; background: #1d222d; color: #e6e8ee;
+  }
+  .btn:hover { background: #2a3140; }
+  .btn-primary { background: #ffd23f; color: #1a1a1a; }
+  .btn-primary:hover { background: #f5b800; }
+  .btn-danger { background: transparent; border-color: #ef4444; color: #ef4444; }
+  .btn-sm { padding: 6px 10px; font-size: 12px; }
+  .btn-block { width: 100%; }
+
+  .err { color: #ef4444; font-size: 13px; margin-top: 8px; min-height: 18px; }
+
+  .app { display: none; min-height: 100vh; flex-direction: column; }
+  .app.visible { display: flex; }
+  header.topbar {
+    background: #161a22; border-bottom: 1px solid #2a3140;
+    padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+  }
+  header .logo { margin: 0; font-size: 20px; }
+  header .spacer { flex: 1; }
+  .user-chip { color: #8a93a6; font-size: 13px; }
+
+  .toolbar {
+    padding: 16px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    border-bottom: 1px solid #2a3140;
+  }
+  .breadcrumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .crumb { color: #8a93a6; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .crumb:hover { background: #1d222d; color: #e6e8ee; }
+  .crumb.current { color: #e6e8ee; cursor: default; }
+  .crumb-sep { color: #2a3140; }
+
+  main.content { flex: 1; padding: 24px; overflow: auto; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid #2a3140; }
+  th { color: #8a93a6; font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  tr:hover td { background: #161a22; }
+  .row-folder td:first-child, .row-file td:first-child { cursor: pointer; }
+  .row-folder td:first-child:hover, .row-file td:first-child:hover { color: #ffd23f; }
+  .icon { margin-right: 8px; }
+  .empty { text-align: center; padding: 60px 20px; color: #8a93a6; }
+
+  .actions-cell { display: flex; gap: 6px; }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  .modal-backdrop.visible { display: flex; }
+  .modal {
+    background: #161a22; border: 1px solid #2a3140; border-radius: 14px;
+    padding: 24px; width: 100%; max-width: 440px;
+  }
+  .modal h3 { margin: 0 0 16px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; background: #1d222d;
+    border: 1px solid #2a3140; border-radius: 10px; padding: 12px 18px;
+    z-index: 200; opacity: 0; transform: translateY(10px); transition: .2s;
+    max-width: 360px;
+  }
+  .toast.visible { opacity: 1; transform: translateY(0); }
+  .toast.error { border-color: #ef4444; }
+  .toast.success { border-color: #22c55e; }
+
+  .hidden { display: none !important; }
+
+  .debug-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    background: #0a0c0f;
+    border-top: 2px solid #ffd23f;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 11px;
+    z-index: 1000;
+  }
+  .debug-header {
+    padding: 8px 12px;
+    background: #161a22;
+    border-bottom: 1px solid #2a3140;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+  }
+  .debug-header h4 { margin: 0; color: #ffd23f; }
+  .debug-content { padding: 8px; }
+  .debug-log {
+    padding: 4px 8px;
+    margin: 2px 0;
+    border-left: 3px solid #2a3140;
+    background: #161a22;
+  }
+  .debug-log.request { border-left-color: #3b82f6; }
+  .debug-log.response { border-left-color: #22c55e; }
+  .debug-log.error { border-left-color: #ef4444; }
+  .debug-log.info { border-left-color: #ffd23f; }
+  .debug-time { color: #8a93a6; margin-right: 8px; }
+  .debug-method { color: #3b82f6; font-weight: bold; margin-right: 8px; }
+  .debug-status { margin-right: 8px; }
+  .debug-status.ok { color: #22c55e; }
+  .debug-status.err { color: #ef4444; }
 </style>
 </head>
 <body>
-<div class="container">
-<h1>Banana Cloud Storage</h1>
 
-<div class="card">
-<h2>Авторизация</h2>
-<input id="email" type="email" placeholder="email" value="test@example.com">
-<input id="password" type="password" placeholder="password" value="secret123">
-<button onclick="registerUser()">Register</button>
-<button onclick="login()">Login</button>
-<button onclick="logout()">Logout</button>
-</div>
+<div id="auth-screen" class="auth-wrap">
+  <div class="auth-card">
+    <div class="logo">🍌 Banana <span>Cloud</span></div>
+    <div class="auth-sub">Приватное облачное хранилище</div>
+    <div class="tabs">
+      <div class="tab active" data-tab="login">Вход</div>
+      <div class="tab" data-tab="register">Регистрация</div>
+    </div>
 
-<div class="card">
-<h2>Мои файлы</h2>
-<div class="crumbs" id="crumbs"></div>
-<div>
-<button onclick="createFolder()">Новая папка</button>
-<input id="file" type="file">
-<button onclick="uploadFile()">Загрузить сюда</button>
-<button class="gray" onclick="loadCurrent()">Обновить</button>
-</div>
-<table>
-<thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Actions</th></tr></thead>
-<tbody id="items"></tbody>
-</table>
-<div class="sharebox" id="sharebox"></div>
-<div id="movebox" style="display:none;margin-top:10px">
-Куда переместить: <select id="moveSelect"></select>
-<button onclick="confirmMove()">Переместить</button>
-<button class="gray" onclick="hideMove()">Отмена</button>
-</div>
-</div>
+    <form id="login-form">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" name="email" required autocomplete="email" />
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input type="password" name="password" required minlength="6" autocomplete="current-password" />
+      </div>
+      <div class="err" id="login-err"></div>
+      <button type="submit" class="btn btn-primary btn-block">Войти</button>
+    </form>
 
-<div class="card">
-<h2>Публичный доступ (проверка share-ссылки)</h2>
-<input id="shareInput" type="text" placeholder="вставь ссылку или токен" size="60">
-<button onclick="openShare()">Открыть</button>
-<div class="small">Работает БЕЗ входа — так ссылку видит посторонний человек.</div>
-<div id="shareView"></div>
+    <form id="register-form" class="hidden">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" name="email" required autocomplete="email" />
+      </div>
+      <div class="field">
+        <label>Пароль (мин. 6 символов)</label>
+        <input type="password" name="password" required minlength="6" autocomplete="new-password" />
+      </div>
+      <div class="err" id="register-err"></div>
+      <button type="submit" class="btn btn-primary btn-block">Создать аккаунт</button>
+    </form>
+  </div>
 </div>
 
-<div id="status">Готово.</div>
+<div id="app-screen" class="app">
+  <header class="topbar">
+    <div class="logo">🍌 Banana <span>Cloud</span></div>
+    <div class="spacer"></div>
+    <div class="user-chip" id="user-email"></div>
+    <button class="btn btn-sm" id="logout-btn">Выйти</button>
+  </header>
+
+  <div class="toolbar">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    <div style="flex:1"></div>
+    <button class="btn btn-sm" id="new-folder-btn">📁 Новая папка</button>
+    <button class="btn btn-sm btn-primary" id="upload-btn">⬆️ Загрузить</button>
+    <input type="file" id="file-input" multiple class="hidden" />
+  </div>
+
+  <main class="content">
+    <table>
+      <thead>
+        <tr>
+          <th>Имя</th>
+          <th>Тип</th>
+          <th>Размер</th>
+          <th>Создано</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody id="items-body"></tbody>
+    </table>
+    <div id="empty-state" class="empty hidden">Папка пуста</div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="debug-panel" id="debug-panel">
+  <div class="debug-header">
+    <h4>🔍 Debug Log</h4>
+    <button class="btn btn-sm" onclick="clearDebug()">Очистить</button>
+  </div>
+  <div class="debug-content" id="debug-content"></div>
 </div>
 
 <script>
-var token = localStorage.getItem('banana_token') || '';
-var chain = [{id:'', name:'Корень'}];
-var moveFileID = '';
-
-function cur(){ return chain[chain.length-1].id; }
-function setStatus(m){ document.getElementById('status').textContent = m; }
-function setToken(v){ token=v||''; if(token) localStorage.setItem('banana_token',token); else localStorage.removeItem('banana_token'); }
-function getCredentials(){ return {email:document.getElementById('email').value.trim(), password:document.getElementById('password').value}; }
-function h(tag,text){ var e=document.createElement(tag); e.textContent=text; return e; }
-
-async function api(path,opts){
-	opts=opts||{};opts.headers=opts.headers||{};
-	if(token)opts.headers['Authorization']='Bearer '+token;
-	if(opts.body&&!(opts.body instanceof FormData))opts.headers['Content-Type']='application/json';
-	var r=await fetch(path,opts),d=null;
-	try{d=await r.json()}catch(e){}
-	if(!r.ok){
-		if(r.status===401&&token){ setToken(''); setStatus('Сессия истекла (сервер перезапускался). Нажми Login.'); }
-		var msg='HTTP '+r.status; if(d&&d.error&&d.error.message)msg=d.error.message; throw new Error(msg);
-	}
-	return d;
+// ===================== DEBUG LOGGING =====================
+function debugLog(type, message, data = null) {
+  const time = new Date().toLocaleTimeString('ru-RU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+  const entry = document.createElement('div');
+  entry.className = `debug-log ${type}`;
+  
+  let html = `<span class="debug-time">[${time}]</span>`;
+  
+  if (type === 'request') {
+    const [method, url] = message.split(' ');
+    html += `<span class="debug-method">${method}</span>`;
+    html += `<span>${url}</span>`;
+  } else if (type === 'response') {
+    const [status, url] = message.split(' ');
+    const statusClass = status.startsWith('2') ? 'ok' : 'err';
+    html += `<span class="debug-status ${statusClass}">${status}</span>`;
+    html += `<span>${url}</span>`;
+  } else {
+    html += `<span>${message}</span>`;
+  }
+  
+  if (data) {
+    html += `<div style="margin-top:4px;color:#8a93a6;font-size:10px;">${JSON.stringify(data, null, 2)}</div>`;
+  }
+  
+  entry.innerHTML = html;
+  document.getElementById('debug-content').appendChild(entry);
+  document.getElementById('debug-content').scrollTop = document.getElementById('debug-content').scrollHeight;
+  
+  console.log(`[${type.toUpperCase()}]`, message, data || '');
 }
 
-async function registerUser(){
-	try{ await api('/api/v1/auth/register',{method:'POST',body:JSON.stringify(getCredentials())}); setStatus('Пользователь создан. Вхожу...'); await login(); }
-	catch(e){ setStatus('Ошибка: '+e.message); }
-}
-async function login(){
-	try{ var d=await api('/api/v1/auth/login',{method:'POST',body:JSON.stringify(getCredentials())}); setToken(d.token); setStatus('Вход выполнен.'); chain=[{id:'',name:'Корень'}]; loadCurrent(); }
-	catch(e){ setStatus('Ошибка: '+e.message); }
-}
-async function logout(){
-	try{ await api('/api/v1/auth/logout',{method:'POST'}); }catch(e){}
-	setToken(''); renderItems([],[]); renderCrumbs(); setStatus('Выход выполнен.');
+function clearDebug() {
+  document.getElementById('debug-content').innerHTML = '';
 }
 
-function renderCrumbs(){
-	var el=document.getElementById('crumbs'); el.innerHTML='';
-	chain.forEach(function(c,i){
-		var s=document.createElement('span');
-		var isLast=(i===chain.length-1);
-		s.textContent=c.name+(isLast?'':' /');
-		if(isLast){ s.className='last'; }
-		else{ s.onclick=function(){ chain=chain.slice(0,i+1); loadCurrent(); }; }
-		el.appendChild(s);
-	});
+// ===================== STATE =====================
+const state = {
+  token: localStorage.getItem('banana_token'),
+  email: localStorage.getItem('banana_email'),
+  currentFolderId: '',
+  folderPath: [],
+};
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+// ===================== API =====================
+async function api(path, opts = {}) {
+  const headers = opts.headers || {};
+  if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+  
+  if (!(opts.body instanceof FormData) && opts.body && typeof opts.body === 'object') {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+  
+  const method = opts.method || 'GET';
+  debugLog('request', `${method} ${path}`, opts.body ? JSON.parse(opts.body) : null);
+  
+  try {
+    const res = await fetch(path, { ...opts, headers });
+    const text = await res.text();
+    
+    let data;
+    try { 
+      data = JSON.parse(text); 
+    } catch { 
+      data = text; 
+    }
+    
+    debugLog('response', `${res.status} ${path}`, data);
+    
+    if (!res.ok) {
+      const msg = (data && data.error && data.error.message) || ('HTTP ' + res.status);
+      debugLog('error', `API Error: ${msg}`, data);
+      throw new Error(msg);
+    }
+    
+    return data;
+  } catch (err) {
+    debugLog('error', `Fetch failed: ${err.message}`, { path, opts });
+    throw err;
+  }
 }
 
-async function loadCurrent(){
-	renderCrumbs();
-	var tb=document.getElementById('items');
-	if(!token){ tb.innerHTML=''; setStatus('Войди, чтобы видеть файлы.'); return; }
-	try{
-		var fRes=await api('/api/v1/files?folderID='+encodeURIComponent(cur()));
-		var dRes=await api('/api/v1/folders?parentID='+encodeURIComponent(cur()));
-		renderItems(dRes.items||[], fRes.items||[]);
-		setStatus('Папка "'+cur_name()+'": папок '+(dRes.items||[]).length+', файлов '+(fRes.items||[]).length);
-	}catch(e){ setStatus('Ошибка: '+e.message); }
-}
-function cur_name(){ return chain[chain.length-1].name; }
-
-function renderItems(folders,files){
-	var tb=document.getElementById('items'); tb.innerHTML='';
-	if(!folders.length&&!files.length){
-		var tr0=document.createElement('tr'),td0=document.createElement('td');
-		td0.colSpan=4; td0.textContent='Пусто. Создай папку или загрузи файл.';
-		tr0.appendChild(td0); tb.appendChild(tr0); return;
-	}
-	folders.forEach(function(d){
-		var tr=document.createElement('tr');
-		var n=document.createElement('td');
-		var link=document.createElement('span'); link.className='folderlink'; link.textContent='📁 '+d.name;
-		link.onclick=function(){ openFolder(d); };
-		n.appendChild(link);
-		var t=document.createElement('td'); t.textContent='folder';
-		var s=document.createElement('td'); s.textContent='—';
-		var a=document.createElement('td');
-		a.appendChild(mkBtn('Открыть',function(){openFolder(d)}));
-		a.appendChild(mkBtn('Переим.',function(){renameFolder(d.id)}));
-		a.appendChild(mkBtn('Share',function(){shareResource('folder',d.id)}));
-		a.appendChild(mkBtn('Удалить',function(){deleteFolder(d.id)}));
-		tr.appendChild(n);tr.appendChild(t);tr.appendChild(s);tr.appendChild(a);tb.appendChild(tr);
-	});
-	files.forEach(function(f){
-		var tr=document.createElement('tr');
-		var n=document.createElement('td'); n.textContent=f.name;
-		var t=document.createElement('td'); t.textContent=f.contentType;
-		var s=document.createElement('td'); s.textContent=f.size;
-		var a=document.createElement('td');
-		a.appendChild(mkBtn('Download',function(){downloadFile(f.id,f.name)}));
-		a.appendChild(mkBtn('Share',function(){shareResource('file',f.id)}));
-		a.appendChild(mkBtn('Move',function(){startMove(f.id)}));
-		a.appendChild(mkBtn('Удалить',function(){deleteFile(f.id)}));
-		tr.appendChild(n);tr.appendChild(t);tr.appendChild(s);tr.appendChild(a);tb.appendChild(tr);
-	});
-}
-function mkBtn(text,fn){ var b=document.createElement('button'); b.textContent=text; b.onclick=fn; return b; }
-function openFolder(d){ chain.push({id:d.id,name:d.name}); loadCurrent(); }
-
-async function createFolder(){
-	if(!token){ setStatus('Войди.'); return; }
-	var name=prompt('Имя папки:'); if(!name) return;
-	try{ await api('/api/v1/folders',{method:'POST',body:JSON.stringify({name:name,parentID:cur()})}); setStatus('Папка создана.'); loadCurrent(); }
-	catch(e){ setStatus('Ошибка: '+e.message); }
-}
-async function renameFolder(id){
-	var name=prompt('Новое имя папки:'); if(!name) return;
-	try{ await api('/api/v1/folders/'+id,{method:'PATCH',body:JSON.stringify({name:name})}); loadCurrent(); }
-	catch(e){ setStatus('Ошибка: '+e.message); }
-}
-async function deleteFolder(id){
-	if(!confirm('Удалить папку ВМЕСТЕ со всем содержимым?')) return;
-	try{ await api('/api/v1/folders/'+id,{method:'DELETE'}); setStatus('Папка удалена.'); loadCurrent(); }
-	catch(e){ setStatus('Ошибка: '+e.message); }
+// ===================== TOAST =====================
+let toastTimer;
+function toast(msg, type = '') {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast visible ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('visible'), 3000);
 }
 
-async function uploadFile(){
-	if(!token){ setStatus('Войди.'); return; }
-	var fi=document.getElementById('file');
-	if(!fi.files||!fi.files[0]){ setStatus('Выбери файл.'); return; }
-	var fd=new FormData(); fd.append('file',fi.files[0]);
-	try{ await api('/api/v1/files?folderID='+encodeURIComponent(cur()),{method:'POST',body:fd}); fi.value=''; setStatus('Файл загружен в "'+cur_name()+'".'); loadCurrent(); }
-	catch(e){ setStatus('Ошибка: '+e.message); }
-}
-async function deleteFile(id){
-	if(!confirm('Удалить файл?')) return;
-	try{ await api('/api/v1/files/'+encodeURIComponent(id),{method:'DELETE'}); setStatus('Файл удалён.'); loadCurrent(); }
-	catch(e){ setStatus('Ошибка: '+e.message); }
-}
-async function downloadFile(id,name){
-	try{
-		var r=await fetch('/api/v1/files/'+encodeURIComponent(id)+'/download',{headers:{'Authorization':'Bearer '+token}});
-		if(!r.ok) throw new Error('HTTP '+r.status);
-		var b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');
-		a.href=u; a.download=name||'download'; document.body.appendChild(a); a.click(); a.remove();
-		setTimeout(function(){URL.revokeObjectURL(u)},1000);
-		setStatus('Скачивание началось.');
-	}catch(e){ setStatus('Ошибка: '+e.message); }
+// ===================== AUTH =====================
+$$('.tab').forEach(t => t.addEventListener('click', () => {
+  $$('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  const tab = t.dataset.tab;
+  $('#login-form').classList.toggle('hidden', tab !== 'login');
+  $('#register-form').classList.toggle('hidden', tab !== 'register');
+}));
+
+$('#login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const email = fd.get('email').toString().trim();
+  const password = fd.get('password').toString();
+  $('#login-err').textContent = '';
+  
+  try {
+    debugLog('info', 'Attempting login', { email });
+    const data = await api('/api/v1/auth/login', {
+      method: 'POST',
+      body: { email, password }
+    });
+    
+    debugLog('info', 'Login successful', { token: data.token?.substring(0, 20) + '...' });
+    
+    state.token = data.token;
+    state.email = email;
+    localStorage.setItem('banana_token', data.token);
+    localStorage.setItem('banana_email', email);
+    showApp();
+  } catch (err) {
+    $('#login-err').textContent = err.message;
+  }
+});
+
+$('#register-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const email = fd.get('email').toString().trim();
+  const password = fd.get('password').toString();
+  $('#register-err').textContent = '';
+  
+  try {
+    debugLog('info', 'Attempting registration', { email });
+    await api('/api/v1/auth/register', {
+      method: 'POST',
+      body: { email, password }
+    });
+    
+    toast('Аккаунт создан. Войдите.', 'success');
+    $('.tab[data-tab="login"]').click();
+    $('#login-form [name="email"]').value = email;
+    $('#login-form [name="password"]').focus();
+  } catch (err) {
+    $('#register-err').textContent = err.message;
+  }
+});
+
+$('#logout-btn').addEventListener('click', async () => {
+  try { await api('/api/v1/auth/logout', { method: 'POST' }); } catch {}
+  state.token = null; state.email = null;
+  localStorage.removeItem('banana_token');
+  localStorage.removeItem('banana_email');
+  showAuth();
+});
+
+// ===================== APP =====================
+function showAuth() {
+  $('#auth-screen').style.display = 'flex';
+  $('#app-screen').classList.remove('visible');
 }
 
-async function startMove(id){
-	moveFileID=id;
-	var sel=document.getElementById('moveSelect'); sel.innerHTML='';
-	var o=document.createElement('option'); o.value=''; o.textContent='Корень'; sel.appendChild(o);
-	try{
-		await addFolderOptions(sel,'',0);
-		document.getElementById('movebox').style.display='block';
-	}catch(e){ setStatus('Ошибка: '+e.message); }
-}
-async function addFolderOptions(sel,parentID,depth){
-	var d=await api('/api/v1/folders?parentID='+encodeURIComponent(parentID));
-	var items=d.items||[];
-	for(var i=0;i<items.length;i++){
-		var f=items[i];
-		var o=document.createElement('option'); o.value=f.id; o.textContent='- '.repeat(depth)+f.name;
-		sel.appendChild(o);
-		if(depth<4) await addFolderOptions(sel,f.id,depth+1);
-	}
-}
-async function confirmMove(){
-	try{
-		var sel=document.getElementById('moveSelect');
-		await api('/api/v1/files/'+moveFileID+'/move',{method:'PATCH',body:JSON.stringify({folderID:sel.value})});
-		hideMove(); setStatus('Файл перемещён.'); loadCurrent();
-	}catch(e){ setStatus('Ошибка: '+e.message); }
-}
-function hideMove(){ document.getElementById('movebox').style.display='none'; }
-
-async function shareResource(type,id){
-	try{
-		var d=await api('/api/v1/share',{method:'POST',body:JSON.stringify({resourceType:type,resourceID:id})});
-		var full=location.origin+d.url;
-		var box=document.getElementById('sharebox');
-		box.style.display='block'; box.innerHTML='';
-		box.appendChild(h('div','Ссылка на '+type+':'));
-		var a=document.createElement('a'); a.href=full; a.target='_blank'; a.textContent=full; box.appendChild(a);
-		box.appendChild(document.createElement('br'));
-		var b=mkBtn('Копировать',function(){
-			navigator.clipboard.writeText(full).then(function(){setStatus('Ссылка скопирована.')},function(){setStatus('Скопируй вручную: '+full)});
-		});
-		box.appendChild(b);
-		box.appendChild(h('div','Скопируй её и вставь в блок "Публичный доступ" ниже (или открой в приватном окне).'));
-		setStatus('Share-ссылка создана.');
-	}catch(e){ setStatus('Ошибка: '+e.message); }
+function showApp() {
+  $('#auth-screen').style.display = 'none';
+  $('#app-screen').classList.add('visible');
+  $('#user-email').textContent = state.email || '';
+  state.currentFolderId = '';
+  state.folderPath = [];
+  loadFolder();
 }
 
-function extractToken(v){
-	v=v.trim();
-	var marker='/api/v1/share/';
-	var i=v.indexOf(marker);
-	if(i>=0){ return v.slice(i+marker.length).split('/')[0]; }
-	return v;
-}
-async function openShare(){
-	var t=extractToken(document.getElementById('shareInput').value);
-	if(!t){ setStatus('Вставь ссылку или токен.'); return; }
-	var view=document.getElementById('shareView'); view.innerHTML='';
-	try{
-		var r=await fetch('/api/v1/share/'+encodeURIComponent(t));
-		if(!r.ok) throw new Error('HTTP '+r.status);
-		var d=await r.json();
-		if(d.resourceType==='file'){
-			view.appendChild(h('p','Файл: '+d.file.name+' ('+d.file.size+' байт)'));
-			var b=document.createElement('button'); b.textContent='Скачать без входа';
-			b.onclick=function(){ location.href='/api/v1/share/'+t+'/download'; };
-			view.appendChild(b);
-		}else{
-			view.appendChild(h('p','Папка: '+d.folder.name));
-			(d.items.files||[]).forEach(function(f){
-				var row=document.createElement('div');
-				row.textContent=f.name+' ('+f.size+' байт) ';
-				var bb=document.createElement('button'); bb.textContent='Download';
-				bb.onclick=function(){ location.href='/api/v1/share/'+t+'/download?fileID='+f.id; };
-				row.appendChild(bb); view.appendChild(row);
-			});
-			(d.items.folders||[]).forEach(function(s){
-				view.appendChild(h('div','📁 '+s.name+' (вложенная папка, по ссылке не открывается)'));
-			});
-		}
-		setStatus('Share-ссылка открыта (без входа).');
-	}catch(e){ setStatus('Ошибка открытия ссылки: '+e.message); }
+// ===================== FOLDER NAV =====================
+async function loadFolder() {
+  debugLog('info', 'Loading folder', { folderId: state.currentFolderId || 'root' });
+  
+  const tbody = $('#items-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="empty">Загрузка...</td></tr>';
+  $('#empty-state').classList.add('hidden');
+  renderBreadcrumbs();
+  
+  try {
+    const url = `/api/v1/folders/${encodeURIComponent(state.currentFolderId || 'root')}/items`;
+    const data = await api(url);
+    
+    debugLog('info', 'Folder loaded', { 
+      folders: data.folders?.length || 0, 
+      files: data.files?.length || 0 
+    });
+    
+    renderItems(data.folders || [], data.files || []);
+  } catch (err) {
+    debugLog('error', 'Failed to load folder', { error: err.message });
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Ошибка: ${err.message}</td></tr>`;
+  }
 }
 
-window.onload=function(){ renderCrumbs(); if(token) loadCurrent(); };
+function renderBreadcrumbs() {
+  const bc = $('#breadcrumbs');
+  bc.innerHTML = '';
+  const root = document.createElement('span');
+  root.className = 'crumb' + (state.folderPath.length === 0 ? ' current' : '');
+  root.textContent = '🏠 Мои файлы';
+  root.onclick = () => { state.currentFolderId = ''; state.folderPath = []; loadFolder(); };
+  bc.appendChild(root);
+  
+  state.folderPath.forEach((p, i) => {
+    const sep = document.createElement('span');
+    sep.className = 'crumb-sep'; sep.textContent = '›';
+    bc.appendChild(sep);
+    const c = document.createElement('span');
+    c.className = 'crumb' + (i === state.folderPath.length - 1 ? ' current' : '');
+    c.textContent = p.name;
+    c.onclick = () => {
+      state.folderPath = state.folderPath.slice(0, i + 1);
+      state.currentFolderId = p.id;
+      loadFolder();
+    };
+    bc.appendChild(c);
+  });
+}
+
+function renderItems(folders, files) {
+  const tbody = $('#items-body');
+  tbody.innerHTML = '';
+  
+  if (!folders.length && !files.length) {
+    $('#empty-state').classList.remove('hidden');
+    return;
+  }
+  $('#empty-state').classList.add('hidden');
+
+  folders.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.className = 'row-folder';
+    tr.innerHTML = `
+      <td><span class="icon">📁</span>${escapeHtml(f.name)}</td>
+      <td>Папка</td>
+      <td>—</td>
+      <td>${fmtDate(f.createdAt)}</td>
+      <td class="actions-cell">
+        <button class="btn btn-sm" data-act="rename-folder" data-id="${f.id}" data-name="${escapeAttr(f.name)}">✏️</button>
+        <button class="btn btn-sm btn-danger" data-act="delete-folder" data-id="${f.id}">🗑</button>
+      </td>`;
+    tr.querySelector('td').onclick = () => openFolder(f.id, f.name);
+    tbody.appendChild(tr);
+  });
+
+  files.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.className = 'row-file';
+    tr.innerHTML = `
+      <td><span class="icon">${fileIcon(f.contentType)}</span>${escapeHtml(f.name)}</td>
+      <td>${escapeHtml(f.contentType || 'file')}</td>
+      <td>${fmtSize(f.size)}</td>
+      <td>${fmtDate(f.createdAt)}</td>
+      <td class="actions-cell">
+        <a class="btn btn-sm" href="${f.downloadUrl}" download>⬇️</a>
+        <button class="btn btn-sm btn-danger" data-act="delete-file" data-id="${f.id}">🗑</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  tbody.onclick = (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const id = btn.dataset.id;
+    if (act === 'rename-folder') openRenameFolder(id, btn.dataset.name);
+    if (act === 'delete-folder') deleteFolder(id);
+    if (act === 'delete-file') deleteFile(id);
+  };
+}
+
+function openFolder(id, name) {
+  state.currentFolderId = id;
+  state.folderPath.push({ id, name });
+  loadFolder();
+}
+
+// ===================== ACTIONS =====================
+$('#new-folder-btn').onclick = () => openModal(`
+  <h3>Новая папка</h3>
+  <div class="field">
+    <label>Имя</label>
+    <input id="nf-name" autofocus />
+  </div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal()">Отмена</button>
+    <button class="btn btn-primary" id="nf-ok">Создать</button>
+  </div>
+`, async () => {
+  const name = $('#nf-name').value.trim();
+  if (!name) return;
+  
+  try {
+    debugLog('info', 'Creating folder', { name, parentID: state.currentFolderId });
+    await api('/api/v1/folders', {
+      method: 'POST',
+      body: { name, parentID: state.currentFolderId }
+    });
+    closeModal();
+    toast('Папка создана', 'success');
+    loadFolder();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+});
+
+$('#upload-btn').onclick = () => $('#file-input').click();
+$('#file-input').onchange = async (e) => {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    
+    try {
+      debugLog('info', 'Uploading file', { name: file.name, size: file.size, folderID: state.currentFolderId });
+      await api('/api/v1/files?folderID=' + encodeURIComponent(state.currentFolderId), {
+        method: 'POST', body: fd
+      });
+    } catch (err) {
+      toast('Ошибка загрузки ' + file.name + ': ' + err.message, 'error');
+      e.target.value = '';
+      return;
+    }
+  }
+  e.target.value = '';
+  toast('Загружено: ' + files.length, 'success');
+  loadFolder();
+};
+
+function openRenameFolder(id, oldName) {
+  openModal(`
+    <h3>Переименовать папку</h3>
+    <div class="field">
+      <label>Новое имя</label>
+      <input id="rf-name" value="${escapeAttr(oldName)}" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" id="rf-ok">Сохранить</button>
+    </div>
+  `, async () => {
+    const name = $('#rf-name').value.trim();
+    if (!name) return;
+    
+    try {
+      await api('/api/v1/folders/' + encodeURIComponent(id), {
+        method: 'PATCH', body: { name }
+      });
+      closeModal();
+      toast('Переименовано', 'success');
+      loadFolder();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
+}
+
+async function deleteFolder(id) {
+  if (!confirm('Удалить папку и всё её содержимое?')) return;
+  try {
+    await api('/api/v1/folders/' + encodeURIComponent(id), { method: 'DELETE' });
+    toast('Папка удалена', 'success');
+    loadFolder();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function deleteFile(id) {
+  if (!confirm('Удалить файл?')) return;
+  try {
+    await api('/api/v1/files/' + encodeURIComponent(id), { method: 'DELETE' });
+    toast('Файл удалён', 'success');
+    loadFolder();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ===================== MODAL =====================
+let modalSubmit = null;
+function openModal(html, onSubmit) {
+  $('#modal-content').innerHTML = html;
+  $('#modal-backdrop').classList.add('visible');
+  modalSubmit = onSubmit;
+  const okBtn = $('#modal-content').querySelector('[id$="-ok"]');
+  if (okBtn && onSubmit) okBtn.onclick = onSubmit;
+}
+
+function closeModal() {
+  $('#modal-backdrop').classList.remove('visible');
+  modalSubmit = null;
+}
+
+$('#modal-backdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'modal-backdrop') closeModal();
+});
+
+// ===================== HELPERS =====================
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+function fmtSize(b) {
+  if (!b && b !== 0) return '—';
+  const units = ['B','KB','MB','GB','TB'];
+  let i = 0; let n = b;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return n.toFixed(n < 10 && i > 0 ? 1 : 0) + ' ' + units[i];
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  return d.toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function fileIcon(ct) {
+  if (!ct) return '📄';
+  if (ct.startsWith('image/')) return '🖼️';
+  if (ct.startsWith('video/')) return '🎬';
+  if (ct.startsWith('audio/')) return '🎵';
+  if (ct.includes('pdf')) return '📕';
+  if (ct.includes('zip') || ct.includes('rar') || ct.includes('tar')) return '🗜️';
+  if (ct.includes('text') || ct.includes('json') || ct.includes('xml')) return '📝';
+  return '📄';
+}
+
+// ===================== INIT =====================
+debugLog('info', 'App initialized', { 
+  hasToken: !!state.token, 
+  email: state.email 
+});
+
+if (state.token) {
+  showApp();
+} else {
+  showAuth();
+}
 </script>
 </body>
 </html>

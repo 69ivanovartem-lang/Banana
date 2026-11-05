@@ -21,16 +21,12 @@ import (
 	"time"
 )
 
-// ===== Ошибки =====
-
 var (
 	ErrEmailExists        = errors.New("email already exists")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrNotFound           = errors.New("not found")
 	ErrInvalidParent      = errors.New("invalid parent folder")
 )
-
-// ===== Модели =====
 
 type User struct {
 	ID           string    `json:"id"`
@@ -74,8 +70,6 @@ type Session struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-// ===== База и Store =====
-
 type DB struct {
 	Users      map[string]User      `json:"users"`
 	Files      map[string]FileMeta  `json:"files"`
@@ -91,8 +85,6 @@ type Store struct {
 	dataDir  string
 	dbPath   string
 }
-
-// ===== Ответы фронтенду =====
 
 type fileResponse struct {
 	ID          string    `json:"id"`
@@ -125,8 +117,6 @@ type folderItemsResponse struct {
 	Folders []folderResponse `json:"folders"`
 }
 
-// ===== main =====
-
 func main() {
 	dataDir := getEnv("BANANA_DATA_DIR", "./data")
 	port := getEnv("BANANA_PORT", "8080")
@@ -148,12 +138,10 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	// Авторизация
 	mux.HandleFunc("POST /api/v1/auth/register", handleRegister(store))
 	mux.HandleFunc("POST /api/v1/auth/login", handleLogin(store))
 	mux.HandleFunc("POST /api/v1/auth/logout", handleLogout(store))
 
-	// Папки
 	mux.Handle("POST /api/v1/folders", requireAuth(store, handleCreateFolder(store)))
 	mux.Handle("GET /api/v1/folders", requireAuth(store, handleListFolders(store)))
 	mux.Handle("GET /api/v1/folders/{id}", requireAuth(store, handleGetFolder(store)))
@@ -161,7 +149,6 @@ func main() {
 	mux.Handle("PATCH /api/v1/folders/{id}", requireAuth(store, handleRenameFolder(store)))
 	mux.Handle("DELETE /api/v1/folders/{id}", requireAuth(store, handleDeleteFolder(store)))
 
-	// Файлы
 	mux.Handle("GET /api/v1/files", requireAuth(store, handleListFiles(store)))
 	mux.Handle("POST /api/v1/files", requireAuth(store, handleUploadFile(store, maxUploadBytes)))
 	mux.Handle("GET /api/v1/files/{id}", requireAuth(store, handleGetFile(store)))
@@ -169,7 +156,6 @@ func main() {
 	mux.Handle("DELETE /api/v1/files/{id}", requireAuth(store, handleDeleteFile(store)))
 	mux.Handle("PATCH /api/v1/files/{id}/move", requireAuth(store, handleMoveFile(store)))
 
-	// Общий доступ
 	mux.Handle("POST /api/v1/share", requireAuth(store, handleCreateShareLink(store)))
 	mux.Handle("GET /api/v1/share/{token}", handleAccessSharedResource(store))
 	mux.Handle("GET /api/v1/share/{token}/download", handleDownloadSharedFile(store))
@@ -178,14 +164,11 @@ func main() {
 	handler := logMiddleware(corsMiddleware(mux))
 
 	slog.Info("Banana API started", "addr", ":"+port, "dataDir", dataDir)
-
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}
 }
-
-// ===== Store =====
 
 func NewStore(dataDir string) (*Store, error) {
 	filesDir := filepath.Join(dataDir, "files")
@@ -256,8 +239,6 @@ func (s *Store) saveLocked() error {
 	return os.Rename(tmpPath, s.dbPath)
 }
 
-// ===== Пользователи =====
-
 func (s *Store) CreateUser(email, password string) (User, error) {
 	email = normalizeEmail(email)
 	salt := randomHex(16)
@@ -284,6 +265,7 @@ func (s *Store) CreateUser(email, password string) (User, error) {
 	if err := s.saveLocked(); err != nil {
 		return User{}, err
 	}
+
 	return user, nil
 }
 
@@ -306,6 +288,7 @@ func (s *Store) Authenticate(email, password string) (User, error) {
 	if subtle.ConstantTimeCompare([]byte(passwordHash), []byte(user.PasswordHash)) == 0 {
 		return User{}, ErrInvalidCredentials
 	}
+
 	return user, nil
 }
 
@@ -316,9 +299,11 @@ func (s *Store) CreateSession(userID string, ttl time.Duration) Session {
 		UserID:    userID,
 		ExpiresAt: time.Now().UTC().Add(ttl),
 	}
+
 	s.mu.Lock()
 	s.sessions[token] = session
 	s.mu.Unlock()
+
 	return session
 }
 
@@ -330,9 +315,11 @@ func (s *Store) UserIDByToken(token string) (string, bool) {
 	if !ok {
 		return "", false
 	}
+
 	if time.Now().UTC().After(session.ExpiresAt) {
 		return "", false
 	}
+
 	return session.UserID, true
 }
 
@@ -341,8 +328,6 @@ func (s *Store) DeleteSession(token string) {
 	delete(s.sessions, token)
 	s.mu.Unlock()
 }
-
-// ===== Папки =====
 
 func (s *Store) CreateFolder(userID, name, parentID string) (Folder, error) {
 	s.mu.Lock()
@@ -371,6 +356,7 @@ func (s *Store) CreateFolder(userID, name, parentID string) (Folder, error) {
 	if err := s.saveLocked(); err != nil {
 		return Folder{}, err
 	}
+
 	return folder, nil
 }
 
@@ -388,6 +374,7 @@ func (s *Store) ListFolders(userID, parentID string) []Folder {
 	sort.Slice(folders, func(i, j int) bool {
 		return folders[i].Name < folders[j].Name
 	})
+
 	return folders
 }
 
@@ -402,6 +389,7 @@ func (s *Store) GetFolderForUser(folderID, userID string) (Folder, error) {
 	if folder.UserID != userID {
 		return Folder{}, ErrNotFound
 	}
+
 	return folder, nil
 }
 
@@ -423,6 +411,7 @@ func (s *Store) RenameFolder(folderID, userID, newName string) (Folder, error) {
 	if err := s.saveLocked(); err != nil {
 		return Folder{}, err
 	}
+
 	return folder, nil
 }
 
@@ -438,7 +427,6 @@ func (s *Store) DeleteFolder(folderID, userID string) error {
 		return ErrNotFound
 	}
 
-	// Удаляем файлы в папке
 	for id, file := range s.db.Files {
 		if file.FolderID == folderID {
 			_ = os.Remove(filepath.Join(s.filesDir(), file.StorageKey))
@@ -446,7 +434,6 @@ func (s *Store) DeleteFolder(folderID, userID string) error {
 		}
 	}
 
-	// Удаляем подпапки
 	for id, subfolder := range s.db.Folders {
 		if subfolder.ParentID == folderID {
 			delete(s.db.Folders, id)
@@ -480,6 +467,7 @@ func (s *Store) GetFolderItems(userID, folderID string) folderItemsResponse {
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].CreatedAt.After(files[j].CreatedAt)
 	})
+
 	sort.Slice(folders, func(i, j int) bool {
 		return folders[i].Name < folders[j].Name
 	})
@@ -487,12 +475,12 @@ func (s *Store) GetFolderItems(userID, folderID string) folderItemsResponse {
 	return folderItemsResponse{Files: files, Folders: folders}
 }
 
-// ===== Файлы =====
-
 func (s *Store) AddFile(file FileMeta) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.db.Files[file.ID] = file
+
 	return s.saveLocked()
 }
 
@@ -510,6 +498,7 @@ func (s *Store) ListFiles(userID, folderID string) []FileMeta {
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].CreatedAt.After(files[j].CreatedAt)
 	})
+
 	return files
 }
 
@@ -524,6 +513,7 @@ func (s *Store) GetFileForUser(fileID, userID string) (FileMeta, error) {
 	if file.UserID != userID {
 		return FileMeta{}, ErrNotFound
 	}
+
 	return file, nil
 }
 
@@ -535,6 +525,7 @@ func (s *Store) GetFile(fileID string) (FileMeta, error) {
 	if !ok {
 		return FileMeta{}, ErrNotFound
 	}
+
 	return file, nil
 }
 
@@ -551,9 +542,11 @@ func (s *Store) DeleteFile(fileID, userID string) (FileMeta, error) {
 	}
 
 	delete(s.db.Files, fileID)
+
 	if err := s.saveLocked(); err != nil {
 		return FileMeta{}, err
 	}
+
 	return file, nil
 }
 
@@ -585,10 +578,9 @@ func (s *Store) MoveFile(fileID, userID, newFolderID string) (FileMeta, error) {
 	if err := s.saveLocked(); err != nil {
 		return FileMeta{}, err
 	}
+
 	return file, nil
 }
-
-// ===== Общий доступ =====
 
 func (s *Store) CreateShareLink(userID, resourceType, resourceID string) (ShareLink, error) {
 	s.mu.Lock()
@@ -622,6 +614,7 @@ func (s *Store) CreateShareLink(userID, resourceType, resourceID string) (ShareL
 	if err := s.saveLocked(); err != nil {
 		return ShareLink{}, err
 	}
+
 	return shareLink, nil
 }
 
@@ -634,6 +627,7 @@ func (s *Store) GetShareLink(token string) (ShareLink, bool) {
 			return link, true
 		}
 	}
+
 	return ShareLink{}, false
 }
 
@@ -650,30 +644,33 @@ func (s *Store) DeleteShareLink(linkID, userID string) error {
 	}
 
 	delete(s.db.ShareLinks, linkID)
+
 	return s.saveLocked()
 }
-
-// ===== Handlers: auth =====
 
 func handleRegister(store *Store) http.HandlerFunc {
 	type req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		var q req
 		if err := readJSON(r, &q); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
+
 		if !validEmail(q.Email) {
 			writeError(w, http.StatusBadRequest, "invalid email")
 			return
 		}
+
 		if len(q.Password) < 6 {
 			writeError(w, http.StatusBadRequest, "password must be at least 6 characters")
 			return
 		}
+
 		user, err := store.CreateUser(q.Email, q.Password)
 		if err != nil {
 			if errors.Is(err, ErrEmailExists) {
@@ -683,8 +680,11 @@ func handleRegister(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "cannot create user")
 			return
 		}
+
 		writeJSON(w, http.StatusCreated, map[string]any{
-			"id": user.ID, "email": user.Email, "createdAt": user.CreatedAt,
+			"id":        user.ID,
+			"email":     user.Email,
+			"createdAt": user.CreatedAt,
 		})
 	}
 }
@@ -694,20 +694,25 @@ func handleLogin(store *Store) http.HandlerFunc {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		var q req
 		if err := readJSON(r, &q); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
+
 		user, err := store.Authenticate(q.Email, q.Password)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "invalid email or password")
 			return
 		}
+
 		session := store.CreateSession(user.ID, 24*time.Hour)
+
 		writeJSON(w, http.StatusOK, map[string]any{
-			"token": session.Token, "expiresAt": session.ExpiresAt,
+			"token":     session.Token,
+			"expiresAt": session.ExpiresAt,
 		})
 	}
 }
@@ -722,24 +727,26 @@ func handleLogout(store *Store) http.HandlerFunc {
 	}
 }
 
-// ===== Handlers: folders =====
-
 func handleCreateFolder(store *Store) http.HandlerFunc {
 	type req struct {
 		Name     string `json:"name"`
 		ParentID string `json:"parentID"`
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
+
 		var q req
 		if err := readJSON(r, &q); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
+
 		if strings.TrimSpace(q.Name) == "" {
 			writeError(w, http.StatusBadRequest, "folder name is required")
 			return
 		}
+
 		folder, err := store.CreateFolder(userID, q.Name, q.ParentID)
 		if err != nil {
 			if errors.Is(err, ErrInvalidParent) {
@@ -749,6 +756,7 @@ func handleCreateFolder(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "cannot create folder")
 			return
 		}
+
 		writeJSON(w, http.StatusCreated, toFolderResponse(folder))
 	}
 }
@@ -757,6 +765,10 @@ func handleListFolders(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		parentID := r.URL.Query().Get("parentID")
+		// "root" означает корневую папку (пустой parentID)
+		if parentID == "root" {
+			parentID = ""
+		}
 		folders := store.ListFolders(userID, parentID)
 		items := make([]folderResponse, 0, len(folders))
 		for _, f := range folders {
@@ -770,11 +782,13 @@ func handleGetFolder(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.PathValue("id")
+
 		folder, err := store.GetFolderForUser(folderID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "folder not found")
 			return
 		}
+
 		writeJSON(w, http.StatusOK, toFolderResponse(folder))
 	}
 }
@@ -783,6 +797,10 @@ func handleGetFolderItems(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.PathValue("id")
+		// "root" означает корневую папку (пустой parentID)
+		if folderID == "root" {
+			folderID = ""
+		}
 		items := store.GetFolderItems(userID, folderID)
 		writeJSON(w, http.StatusOK, items)
 	}
@@ -792,23 +810,28 @@ func handleRenameFolder(store *Store) http.HandlerFunc {
 	type req struct {
 		Name string `json:"name"`
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.PathValue("id")
+
 		var q req
 		if err := readJSON(r, &q); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
+
 		if strings.TrimSpace(q.Name) == "" {
 			writeError(w, http.StatusBadRequest, "folder name is required")
 			return
 		}
+
 		folder, err := store.RenameFolder(folderID, userID, q.Name)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "folder not found")
 			return
 		}
+
 		writeJSON(w, http.StatusOK, toFolderResponse(folder))
 	}
 }
@@ -817,21 +840,25 @@ func handleDeleteFolder(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.PathValue("id")
+
 		err := store.DeleteFolder(folderID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "folder not found")
 			return
 		}
+
 		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
 	}
 }
-
-// ===== Handlers: files =====
 
 func handleListFiles(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.URL.Query().Get("folderID")
+		// "root" означает корневую папку (пустой folderID)
+		if folderID == "root" {
+			folderID = ""
+		}
 		files := store.ListFiles(userID, folderID)
 		items := make([]fileResponse, 0, len(files))
 		for _, f := range files {
@@ -848,7 +875,7 @@ func handleUploadFile(store *Store, maxUploadBytes int64) http.HandlerFunc {
 
 		r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 
-		if err := r.ParseMultipartForm(32 << 20); err != nil {
+		if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
 			var maxErr *http.MaxBytesError
 			if errors.As(err, &maxErr) {
 				writeError(w, http.StatusRequestEntityTooLarge, "file too large")
@@ -879,11 +906,13 @@ func handleUploadFile(store *Store, maxUploadBytes int64) http.HandlerFunc {
 		if closeErr := out.Close(); err == nil {
 			err = closeErr
 		}
+
 		if err != nil {
 			os.Remove(destPath)
 			writeError(w, http.StatusBadRequest, "cannot write uploaded file")
 			return
 		}
+
 		if size == 0 {
 			os.Remove(destPath)
 			writeError(w, http.StatusBadRequest, "empty file")
@@ -920,11 +949,13 @@ func handleGetFile(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		fileID := r.PathValue("id")
+
 		file, err := store.GetFileForUser(fileID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "file not found")
 			return
 		}
+
 		writeJSON(w, http.StatusOK, toFileResponse(file))
 	}
 }
@@ -933,11 +964,13 @@ func handleDownloadFile(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		fileID := r.PathValue("id")
+
 		file, err := store.GetFileForUser(fileID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "file not found")
 			return
 		}
+
 		path := filepath.Join(store.filesDir(), file.StorageKey)
 		f, err := os.Open(path)
 		if err != nil {
@@ -945,6 +978,7 @@ func handleDownloadFile(store *Store) http.HandlerFunc {
 			return
 		}
 		defer f.Close()
+
 		w.Header().Set("Content-Type", file.ContentType)
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", safeFilename(file.Name)))
 		http.ServeContent(w, r, file.Name, file.CreatedAt, f)
@@ -955,12 +989,15 @@ func handleDeleteFile(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		fileID := r.PathValue("id")
+
 		file, err := store.DeleteFile(fileID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "file not found")
 			return
 		}
+
 		_ = os.Remove(filepath.Join(store.filesDir(), file.StorageKey))
+
 		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
 	}
 }
@@ -969,14 +1006,17 @@ func handleMoveFile(store *Store) http.HandlerFunc {
 	type req struct {
 		FolderID string `json:"folderID"`
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		fileID := r.PathValue("id")
+
 		var q req
 		if err := readJSON(r, &q); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
+
 		file, err := store.MoveFile(fileID, userID, q.FolderID)
 		if err != nil {
 			if errors.Is(err, ErrInvalidParent) {
@@ -986,33 +1026,37 @@ func handleMoveFile(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusNotFound, "file not found")
 			return
 		}
+
 		writeJSON(w, http.StatusOK, toFileResponse(file))
 	}
 }
-
-// ===== Handlers: share =====
 
 func handleCreateShareLink(store *Store) http.HandlerFunc {
 	type req struct {
 		ResourceType string `json:"resourceType"`
 		ResourceID   string `json:"resourceID"`
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
+
 		var q req
 		if err := readJSON(r, &q); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
+
 		if q.ResourceType != "file" && q.ResourceType != "folder" {
 			writeError(w, http.StatusBadRequest, "resourceType must be 'file' or 'folder'")
 			return
 		}
+
 		link, err := store.CreateShareLink(userID, q.ResourceType, q.ResourceID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "resource not found")
 			return
 		}
+
 		writeJSON(w, http.StatusCreated, toShareLinkResponse(link))
 	}
 }
@@ -1020,6 +1064,7 @@ func handleCreateShareLink(store *Store) http.HandlerFunc {
 func handleAccessSharedResource(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+
 		link, ok := store.GetShareLink(token)
 		if !ok {
 			writeError(w, http.StatusNotFound, "share link not found")
@@ -1032,6 +1077,7 @@ func handleAccessSharedResource(store *Store) http.HandlerFunc {
 				writeError(w, http.StatusNotFound, "file not found")
 				return
 			}
+
 			writeJSON(w, http.StatusOK, map[string]any{
 				"resourceType": "file",
 				"file":         toFileResponse(file),
@@ -1042,7 +1088,9 @@ func handleAccessSharedResource(store *Store) http.HandlerFunc {
 				writeError(w, http.StatusNotFound, "folder not found")
 				return
 			}
+
 			items := store.GetFolderItems(link.UserID, link.ResourceID)
+
 			writeJSON(w, http.StatusOK, map[string]any{
 				"resourceType": "folder",
 				"folder":       toFolderResponse(folder),
@@ -1052,7 +1100,6 @@ func handleAccessSharedResource(store *Store) http.HandlerFunc {
 	}
 }
 
-// Публичное скачивание файла по share-ссылке (без авторизации)
 func handleDownloadSharedFile(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		shareToken := r.PathValue("token")
@@ -1074,7 +1121,6 @@ func handleDownloadSharedFile(store *Store) http.HandlerFunc {
 				return
 			}
 		} else {
-			// ссылка на папку: качаем только файлы именно из этой папки
 			if fileID == "" {
 				writeError(w, http.StatusBadRequest, "fileID is required for folder share")
 				return
@@ -1110,31 +1156,34 @@ func handleDeleteShareLink(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		linkID := r.PathValue("id")
+
 		err := store.DeleteShareLink(linkID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "share link not found")
 			return
 		}
+
 		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
 	}
 }
-
-// ===== Middleware =====
 
 func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigin := os.Getenv("BANANA_FRONTEND_ORIGIN")
 	if allowedOrigin == "" {
 		allowedOrigin = "*"
 	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -1143,6 +1192,7 @@ func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)
+
 		slog.Info("request",
 			"method", r.Method,
 			"path", r.URL.Path,
@@ -1162,11 +1212,13 @@ func requireAuth(store *Store, next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusUnauthorized, "authorization required")
 			return
 		}
+
 		userID, ok := store.UserIDByToken(token)
 		if !ok {
 			writeError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
+
 		ctx := context.WithValue(r.Context(), userIDContextKey, userID)
 		next(w, r.WithContext(ctx))
 	}
@@ -1178,8 +1230,6 @@ func userIDFromContext(ctx context.Context) string {
 	}
 	return ""
 }
-
-// ===== Helpers =====
 
 func bearerToken(r *http.Request) string {
 	header := r.Header.Get("Authorization")
@@ -1218,6 +1268,7 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	default:
 		code = "internal_error"
 	}
+
 	writeJSON(w, status, map[string]any{
 		"error": map[string]any{"code": code, "message": message},
 	})
@@ -1289,13 +1340,15 @@ func validEmail(email string) bool {
 
 func safeFilename(name string) string {
 	name = filepath.Base(name)
-	name = strings.ReplaceAll(name, "\\", "_")
-	name = strings.ReplaceAll(name, "/", "_")
+	name = strings.ReplaceAll(name, "\\", " ")
+	name = strings.ReplaceAll(name, "/", " ")
 	name = strings.ReplaceAll(name, "\n", " ")
 	name = strings.ReplaceAll(name, "\r", " ")
+
 	if name == "" || name == "." || name == ".." {
 		name = "download"
 	}
+
 	return name
 }
 
@@ -1318,8 +1371,6 @@ func getEnvInt64(key string, defaultValue int64) int64 {
 	}
 	return parsed
 }
-
-// ===== Веб-страница =====
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("index.html")
