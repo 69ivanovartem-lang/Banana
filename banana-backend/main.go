@@ -59,15 +59,21 @@ type FileMeta struct {
 }
 
 type TrashItem struct {
-	ID                 string    `json:"id"`
-	UserID             string    `json:"userID"`
-	OriginalName       string    `json:"originalName"`
-	OriginalFolder     string    `json:"originalFolder"`
-	OriginalFolderName string    `json:"originalFolderName"`
-	StorageKey         string    `json:"storageKey"`
-	Size               int64     `json:"size"`
-	ContentType        string    `json:"contentType"`
-	DeletedAt          time.Time `json:"deletedAt"`
+	ID                 string     `json:"id"`
+	UserID             string     `json:"userID"`
+	Type               string     `json:"type"` // "file" или "folder"
+	OriginalName       string     `json:"originalName"`
+	OriginalFolder     string     `json:"originalFolder"`
+	OriginalFolderName string     `json:"originalFolderName"`
+	StorageKey         string     `json:"storageKey"`  // legacy
+	ContentType        string     `json:"contentType"` // legacy
+	Size               int64      `json:"size"`
+	FileCount          int        `json:"fileCount"`
+	FolderCount        int        `json:"folderCount"`
+	SnapshotFile       *FileMeta  `json:"snapshotFile,omitempty"`
+	SnapshotFolders    []Folder   `json:"snapshotFolders,omitempty"`
+	SnapshotFiles      []FileMeta `json:"snapshotFiles,omitempty"`
+	DeletedAt          time.Time  `json:"deletedAt"`
 }
 
 type ShareLink struct {
@@ -132,7 +138,6 @@ type shareLinkResponse struct {
 
 // ===== РУЧНОЙ РОУТЕР =====
 type router struct {
-	store          *Store
 	hRegister      http.HandlerFunc
 	hLogin         http.HandlerFunc
 	hLogout        http.HandlerFunc
@@ -158,7 +163,7 @@ type router struct {
 }
 
 func newRouter(s *Store, maxUpload int64) *router {
-	rt := &router{store: s}
+	rt := &router{}
 	auth := func(h http.HandlerFunc) http.HandlerFunc { return requireAuth(s, h) }
 	rt.hRegister = handleRegister(s)
 	rt.hLogin = handleLogin(s)
@@ -361,7 +366,7 @@ func (s *Store) saveLocked() error {
 	return os.Rename(tmpPath, s.dbPath)
 }
 
-// ===== Пользователи и сессии (сессии живут в db.json) =====
+// ===== Пользователи и сессии (сессии в db.json) =====
 func (s *Store) CreateUser(email, password string) (User, error) {
 	email = normalizeEmail(email)
 	salt := randomHex(16)
@@ -488,13 +493,13 @@ func (s *Store) RenameFolder(folderID, userID, newName string) (Folder, error) {
 	return folder, nil
 }
 
-// DeleteFolder: файлы папки (и вложенных папок) уходят в КОРЗИНУ, не удаляются навсегда
-func (s *Store) DeleteFolder(folderID, userID string) error {
+// DeleteFolder: папка и ВСЁ её содержимое уходят в корзину ОДНИМ слепком
+func (s *Store) DeleteFolder(folderID, userID string) (TrashItem, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	folder, ok := s.db.Folders[folderID]
 	if !ok || folder.UserID != userID {
-		return ErrNotFound
+		return TrashItem{}, ErrNotFound
 	}
 	var folderIDs []string
 	var collect func(fid string)
@@ -511,19 +516,44 @@ func (s *Store) DeleteFolder(folderID, userID string) error {
 	for _, id := range folderIDs {
 		inSet[id] = true
 	}
-	var toTrash []FileMeta
-	for _, file := range s.db.Files {
-		if inSet[file.FolderID] {
-			toTrash = append(toTrash, file)
+	snapFolders := make([]Folder, 0, len(folderIDs))
+	snapFolders = append(snapFolders, folder)
+	for _, id := range folderIDs {
+		if id != folderID {
+			snapFolders = append(snapFolders, s.db.Folders[id])
 		}
 	}
-	for _, f := range toTrash {
-		s.moveFileToTrashLocked(f)
+	snapFiles := make([]FileMeta, 0)
+	var totalSize int64
+	for _, f := range s.db.Files {
+		if inSet[f.FolderID] {
+			snapFiles = append(snapFiles, f)
+			totalSize += f.Size
+		}
+	}
+	item := TrashItem{
+		ID: "t" + randomHex(15), UserID: userID, Type: "folder",
+		OriginalName: folder.Name, OriginalFolder: folder.ParentID,
+		Size: totalSize, FileCount: len(snapFiles), FolderCount: len(snapFolders) - 1,
+		SnapshotFolders: snapFolders, SnapshotFiles: snapFiles,
+		DeletedAt: time.Now().UTC(),
+	}
+	if folder.ParentID != "" {
+		if fo, ok2 := s.db.Folders[folder.ParentID]; ok2 {
+			item.OriginalFolderName = fo.Name
+		}
 	}
 	for _, id := range folderIDs {
 		delete(s.db.Folders, id)
 	}
-	return s.saveLocked()
+	for _, f := range snapFiles {
+		delete(s.db.Files, f.ID)
+	}
+	s.db.Trash[item.ID] = item
+	if err := s.saveLocked(); err != nil {
+		return TrashItem{}, err
+	}
+	return item, nil
 }
 
 func (s *Store) countRecursive(folderID string, size *int64, count *int) {
@@ -596,21 +626,25 @@ func (s *Store) CheckDuplicateName(userID, parentID, name, excludeID string) boo
 	return s.nameExists(userID, parentID, strings.TrimSpace(name), excludeID)
 }
 
+func (s *Store) uniqueNameLocked(userID, parentID, name string) string {
+	ext := filepath.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	for i := 1; i <= 1000; i++ {
+		cand := fmt.Sprintf("%s (%d)%s", base, i, ext)
+		if !s.nameExists(userID, parentID, cand, "") {
+			return cand
+		}
+	}
+	return fmt.Sprintf("%s_%d%s", base, time.Now().Unix(), ext)
+}
+
 func (s *Store) GenerateUniqueName(userID, parentID, name string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.nameExists(userID, parentID, name, "") {
 		return name
 	}
-	ext := filepath.Ext(name)
-	base := strings.TrimSuffix(name, ext)
-	for i := 1; i <= 1000; i++ {
-		candidate := fmt.Sprintf("%s (%d)%s", base, i, ext)
-		if !s.nameExists(userID, parentID, candidate, "") {
-			return candidate
-		}
-	}
-	return fmt.Sprintf("%s_%d%s", base, time.Now().Unix(), ext)
+	return s.uniqueNameLocked(userID, parentID, name)
 }
 
 // ===== Файлы =====
@@ -676,22 +710,6 @@ func (s *Store) MoveFile(fileID, userID, newFolderID string) (FileMeta, error) {
 }
 
 // ===== КОРЗИНА =====
-func (s *Store) moveFileToTrashLocked(f FileMeta) TrashItem {
-	item := TrashItem{
-		ID: "t" + randomHex(15), UserID: f.UserID, OriginalName: f.Name,
-		OriginalFolder: f.FolderID, StorageKey: f.StorageKey, Size: f.Size,
-		ContentType: f.ContentType, DeletedAt: time.Now().UTC(),
-	}
-	if f.FolderID != "" {
-		if fo, ok := s.db.Folders[f.FolderID]; ok {
-			item.OriginalFolderName = fo.Name
-		}
-	}
-	s.db.Trash[item.ID] = item
-	delete(s.db.Files, f.ID)
-	return item
-}
-
 func (s *Store) TrashFile(fileID, userID string) (TrashItem, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -699,7 +717,20 @@ func (s *Store) TrashFile(fileID, userID string) (TrashItem, error) {
 	if !ok || f.UserID != userID {
 		return TrashItem{}, ErrNotFound
 	}
-	item := s.moveFileToTrashLocked(f)
+	item := TrashItem{
+		ID: "t" + randomHex(15), UserID: userID, Type: "file",
+		OriginalName: f.Name, OriginalFolder: f.FolderID,
+		Size: f.Size, FileCount: 1,
+		SnapshotFile: &f,
+		DeletedAt:    time.Now().UTC(),
+	}
+	if f.FolderID != "" {
+		if fo, ok2 := s.db.Folders[f.FolderID]; ok2 {
+			item.OriginalFolderName = fo.Name
+		}
+	}
+	delete(s.db.Files, f.ID)
+	s.db.Trash[item.ID] = item
 	if err := s.saveLocked(); err != nil {
 		return TrashItem{}, err
 	}
@@ -719,42 +750,80 @@ func (s *Store) ListTrash(userID string) []TrashItem {
 	return items
 }
 
-func (s *Store) RestoreTrash(trashID, userID string) (FileMeta, error) {
+// RestoreTrash: восстанавливает слепок ЦЕЛИКОМ (папка + вложенные папки + файлы на своих местах)
+func (s *Store) RestoreTrash(trashID, userID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	it, ok := s.db.Trash[trashID]
 	if !ok || it.UserID != userID {
-		return FileMeta{}, ErrNotFound
+		return ErrNotFound
 	}
-	folderID := it.OriginalFolder
-	if folderID != "" {
-		if fo, ok2 := s.db.Folders[folderID]; !ok2 || fo.UserID != userID {
-			folderID = ""
-		}
-	}
-	name := it.OriginalName
-	if s.nameExists(userID, folderID, name, "") {
-		ext := filepath.Ext(name)
-		base := strings.TrimSuffix(name, ext)
-		for i := 1; i <= 1000; i++ {
-			cand := fmt.Sprintf("%s (%d)%s", base, i, ext)
-			if !s.nameExists(userID, folderID, cand, "") {
-				name = cand
-				break
+	if it.Type == "folder" && len(it.SnapshotFolders) > 0 {
+		root := it.SnapshotFolders[0]
+		parentID := root.ParentID
+		if parentID != "" {
+			if fo, ok2 := s.db.Folders[parentID]; !ok2 || fo.UserID != userID {
+				parentID = ""
 			}
 		}
+		name := root.Name
+		if s.nameExists(userID, parentID, name, "") {
+			name = s.uniqueNameLocked(userID, parentID, name)
+		}
+		idMap := map[string]string{}
+		for _, f := range it.SnapshotFolders {
+			newID := f.ID
+			if _, occupied := s.db.Folders[newID]; occupied {
+				newID = randomHex(16)
+			}
+			idMap[f.ID] = newID
+		}
+		for i, f := range it.SnapshotFolders {
+			nf := f
+			nf.UserID = userID
+			nf.ID = idMap[f.ID]
+			if i == 0 {
+				nf.ParentID = parentID
+				nf.Name = name
+			} else if mapped, ok2 := idMap[f.ParentID]; ok2 {
+				nf.ParentID = mapped
+			}
+			s.db.Folders[nf.ID] = nf
+		}
+		for _, f := range it.SnapshotFiles {
+			nf := f
+			nf.UserID = userID
+			if _, occupied := s.db.Files[nf.ID]; occupied {
+				nf.ID = randomHex(16)
+			}
+			if mapped, ok2 := idMap[f.FolderID]; ok2 {
+				nf.FolderID = mapped
+			}
+			s.db.Files[nf.ID] = nf
+		}
+	} else {
+		var f FileMeta
+		if it.SnapshotFile != nil {
+			f = *it.SnapshotFile
+		} else {
+			f = FileMeta{Name: it.OriginalName, Size: it.Size, ContentType: it.ContentType, StorageKey: it.StorageKey, CreatedAt: it.DeletedAt}
+		}
+		folderID := it.OriginalFolder
+		if folderID != "" {
+			if fo, ok2 := s.db.Folders[folderID]; !ok2 || fo.UserID != userID {
+				folderID = ""
+			}
+		}
+		f.ID = randomHex(16)
+		f.UserID = userID
+		f.FolderID = folderID
+		if s.nameExists(userID, folderID, f.Name, "") {
+			f.Name = s.uniqueNameLocked(userID, folderID, f.Name)
+		}
+		s.db.Files[f.ID] = f
 	}
-	file := FileMeta{
-		ID: randomHex(16), UserID: userID, Name: name, Size: it.Size,
-		ContentType: it.ContentType, StorageKey: it.StorageKey,
-		FolderID: folderID, CreatedAt: time.Now().UTC(),
-	}
-	s.db.Files[file.ID] = file
 	delete(s.db.Trash, trashID)
-	if err := s.saveLocked(); err != nil {
-		return FileMeta{}, err
-	}
-	return file, nil
+	return s.saveLocked()
 }
 
 func (s *Store) DeleteTrashPermanent(trashID, userID string) (TrashItem, error) {
@@ -967,23 +1036,33 @@ func handleRenameFolder(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "folder name is required")
 			return
 		}
-		folder, err := store.RenameFolder(folderID, userID, q.Name)
+		folder, err := store.GetFolderForUser(folderID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "folder not found")
 			return
 		}
-		writeJSON(w, http.StatusOK, toFolderResponse(folder))
+		if store.CheckDuplicateName(userID, folder.ParentID, q.Name, folderID) {
+			writeError(w, http.StatusConflict, "folder with this name already exists")
+			return
+		}
+		renamed, err := store.RenameFolder(folderID, userID, q.Name)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "folder not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, toFolderResponse(renamed))
 	}
 }
 
 func handleDeleteFolder(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
-		if err := store.DeleteFolder(r.PathValue("id"), userID); err != nil {
+		item, err := store.DeleteFolder(r.PathValue("id"), userID)
+		if err != nil {
 			writeError(w, http.StatusNotFound, "folder not found")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "trashId": item.ID})
 	}
 }
 
@@ -1089,7 +1168,6 @@ func handleDownloadFile(store *Store) http.HandlerFunc {
 	}
 }
 
-// Удаление файла = ПЕРЕМЕЩЕНИЕ В КОРЗИНУ
 func handleDeleteFile(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
@@ -1134,12 +1212,11 @@ func handleListTrash(store *Store) http.HandlerFunc {
 func handleRestoreTrash(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
-		file, err := store.RestoreTrash(r.PathValue("id"), userID)
-		if err != nil {
+		if err := store.RestoreTrash(r.PathValue("id"), userID); err != nil {
 			writeError(w, http.StatusNotFound, "trash item not found")
 			return
 		}
-		writeJSON(w, http.StatusOK, toFileResponse(file))
+		writeJSON(w, http.StatusOK, map[string]any{"restored": true})
 	}
 }
 
@@ -1151,7 +1228,15 @@ func handleDeleteTrashPermanent(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusNotFound, "trash item not found")
 			return
 		}
-		_ = os.Remove(filepath.Join(store.filesDir(), it.StorageKey))
+		if it.Type == "folder" {
+			for _, f := range it.SnapshotFiles {
+				_ = os.Remove(filepath.Join(store.filesDir(), f.StorageKey))
+			}
+		} else if it.SnapshotFile != nil {
+			_ = os.Remove(filepath.Join(store.filesDir(), it.SnapshotFile.StorageKey))
+		} else if it.StorageKey != "" {
+			_ = os.Remove(filepath.Join(store.filesDir(), it.StorageKey))
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
 	}
 }
@@ -1433,7 +1518,7 @@ func getEnvInt64(key string, defaultValue int64) int64 {
 	return defaultValue
 }
 
-// ===== Веб-страница (встроенный интерфейс с КОРЗИНОЙ) =====
+// ===== Веб-страница =====
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("index.html")
 	if err == nil && strings.Contains(string(data), "<script") && strings.Contains(string(data), "trash-btn") {
@@ -1492,7 +1577,6 @@ th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--bd)}
 th{color:var(--mu);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0;background:var(--bg)}
 tr:hover td{background:var(--bg2)}
 .click td:first-child{cursor:pointer}
-.click td:first-child:hover{color:var(--pr)}
 .acts{display:flex;gap:5px;flex-wrap:wrap}
 .empty{text-align:center;padding:50px 20px;color:var(--mu)}
 .mbg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
@@ -1582,7 +1666,6 @@ function fmt(b){if(!b&&b!==0)return '—';var u=['B','KB','MB','GB','TB'],i=0,n=
 function fmtDate(s){if(!s)return '—';return new Date(s).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}
 function icon(ct){if(!ct)return '📄';if(ct.indexOf('image/')===0)return '🖼️';if(ct.indexOf('video/')===0)return '🎬';if(ct.indexOf('audio/')===0)return '🎵';if(ct.indexOf('pdf')>=0)return '📕';if(ct.indexOf('zip')>=0||ct.indexOf('rar')>=0)return '🗜️';if(ct.indexOf('text')>=0||ct.indexOf('json')>=0)return '📝';return '📄';}
 var toastT;function toast(m,t){var e=$('#toast');e.textContent=m;e.className='toast on '+(t||'');clearTimeout(toastT);toastT=setTimeout(function(){e.classList.remove('on');},3000);}
-
 var dbgState=JSON.parse(localStorage.getItem('debug_state')||'{}');
 if(dbgState.hidden){$('#dbg').classList.add('hidden');$('#dbg-toggle').classList.add('on');}
 if(dbgState.height)document.documentElement.style.setProperty('--dh',dbgState.height+'px');
@@ -1597,7 +1680,6 @@ document.addEventListener('mouseup',function(){if(rz){rz=false;saveDbg();}});
 function dlog(t,m,d){var e=document.createElement('div');e.className='dl '+t;var h='<span class="mu">['+new Date().toLocaleTimeString('ru-RU')+']</span> '+esc(m);
 if(d!==null&&d!==undefined){var s=JSON.stringify(d);h+='<div class="mu" style="font-size:10px;white-space:pre-wrap">'+esc(s.length>300?s.slice(0,300)+'…':s)+'</div>';}
 e.innerHTML=h;var b=$('#dbg-body');b.appendChild(e);b.scrollTop=b.scrollHeight;console.log(t,m,d||'');}
-
 function api(p,o){o=o||{};var h=o.headers||{};if(state.token)h['Authorization']='Bearer '+state.token;
 var body=o.body;
 if(o.body&&!(o.body instanceof FormData)){h['Content-Type']='application/json';body=JSON.stringify(o.body);}
@@ -1605,7 +1687,6 @@ dlog('request',(o.method||'GET')+' '+p,o.body instanceof FormData?{formData:true
 return fetch(p,{method:o.method||'GET',headers:h,body:body}).then(function(r){return r.text().then(function(tx){var d;try{d=JSON.parse(tx);}catch(e){d=tx;}
 dlog('response',r.status+' '+p,d);
 if(!r.ok){var msg=(d&&d.error&&d.error.message)||('HTTP '+r.status);throw new Error(msg);}return d;});});}
-
 $$('#tab-login,#tab-reg').forEach(function(t){t.onclick=function(){$$('.tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');
 $('#login-form').classList.toggle('hidden',t.id!=='tab-login');$('#reg-form').classList.toggle('hidden',t.id!=='tab-reg');};});
 $('#login-form').onsubmit=function(e){e.preventDefault();var fd=new FormData(e.target);$('#login-err').textContent='';
@@ -1619,23 +1700,20 @@ $('#logout').onclick=function(){api('/api/v1/auth/logout',{method:'POST'}).catch
 localStorage.removeItem('banana_token');localStorage.removeItem('banana_email');showAuth();};
 function showAuth(){$('#auth').classList.remove('hidden');$('#app').classList.add('hidden');$('#shareview').classList.add('hidden');}
 function showApp(){$('#auth').classList.add('hidden');$('#app').classList.remove('hidden');$('#who').textContent=state.email||'';state.cur='';state.path=[];state.view='files';loadFolder();}
-
 function crumbs(){var bc=$('#crumbs');bc.innerHTML='';
 if(state.view==='trash'){var b=document.createElement('span');b.className='crumb';b.textContent='← Мои файлы';b.onclick=function(){backToFiles();};bc.appendChild(b);
-var s=document.createElement('span');s.className='mu';s.textContent='›';bc.appendChild(s);
+var s1=document.createElement('span');s1.className='mu';s1.textContent='›';bc.appendChild(s1);
 var c=document.createElement('span');c.className='crumb current';c.textContent='🗑 Корзина';bc.appendChild(c);return;}
 var r=document.createElement('span');r.className='crumb'+(state.path.length===0?' current':'');r.textContent='🏠 Мои файлы';
 r.onclick=function(){state.cur='';state.path=[];loadFolder();};bc.appendChild(r);
 state.path.forEach(function(p,i){var s=document.createElement('span');s.className='mu';s.textContent='›';bc.appendChild(s);
 var c=document.createElement('span');c.className='crumb'+(i===state.path.length-1?' current':'');c.textContent=p.name;
 c.onclick=function(){state.path=state.path.slice(0,i+1);state.cur=p.id;loadFolder();};bc.appendChild(c);});}
-
 function loadFolder(){state.view='files';$('#empty').textContent='Папка пуста';crumbs();
-var tb=$('#rows');tb.innerHTML='<tr><td colspan="5" class="empty">Загрузка...</td></tr>';$('#empty').classList.add('hidden');
+var tb=$('#rows');tb.innerHTML='<tr><td colspan="5" class="empty">Загрузка...</td></tr>';$('#empty').classList.add('hidden');tb.onclick=null;
 Promise.all([api('/api/v1/folders?parentID='+encodeURIComponent(state.cur)),api('/api/v1/files?folderID='+encodeURIComponent(state.cur))])
 .then(function(res){render(res[0].items||[],res[1].items||[]);})
 .catch(function(er){tb.innerHTML='<tr><td colspan="5" class="empty">Ошибка: '+esc(er.message)+'</td></tr>';});}
-
 function render(folders,files){var tb=$('#rows');tb.innerHTML='';
 if(!folders.length&&!files.length){$('#empty').classList.remove('hidden');return;}
 $('#empty').classList.add('hidden');
@@ -1644,7 +1722,8 @@ tr.innerHTML='<td>📁 '+esc(f.name)+'</td><td>Папка</td><td>'+fmt(f.size||
 '<td class="acts"><button class="btn small" data-a="ren" data-id="'+f.id+'" data-n="'+esc(f.name)+'">✏️</button>'+
 '<button class="btn small" data-a="shf" data-id="'+f.id+'">🔗</button>'+
 '<button class="btn small danger" data-a="delf" data-id="'+f.id+'">🗑</button></td>';
-tr.querySelector('td').onclick=function(){state.cur=f.id;state.path.push({id:f.id,name:f.name});loadFolder();};tb.appendChild(tr);});
+tr.onclick=function(e){if(e.target.closest('button,a'))return;state.cur=f.id;state.path.push({id:f.id,name:f.name});loadFolder();};
+tb.appendChild(tr);});
 files.forEach(function(f){var tr=document.createElement('tr');
 tr.innerHTML='<td>'+icon(f.contentType)+' '+esc(f.name)+'</td><td>'+esc(f.contentType||'file')+'</td><td>'+fmt(f.size)+'</td><td>'+fmtDate(f.createdAt)+'</td>'+
 '<td class="acts"><a class="btn small" href="'+(f.downloadUrl||'/api/v1/files/'+f.id+'/download')+'" download>⬇️</a>'+
@@ -1658,7 +1737,6 @@ if(a==='delx')delFile(id);
 if(a==='mov')moveFile(id);
 if(a==='shx')share('file',id);
 if(a==='shf')share('folder',id);};}
-
 $('#refresh').onclick=function(){if(state.view==='trash')loadTrash();else loadFolder();};
 $('#newfolder').onclick=function(){modal('<h3>Новая папка</h3><div class="field"><label>Имя</label><input id="m-name" autofocus></div><div class="err" id="m-err"></div><div class="macts"><button class="btn" id="m-cancel">Отмена</button><button class="btn primary" id="m-ok">Создать</button></div>',function(){
 var n=$('#m-name').value.trim();if(!n)return;
@@ -1673,7 +1751,7 @@ chain.then(function(){e.target.value='';toast('Загружено: '+fs.length,'
 function renFolder(id,old){modal('<h3>Переименовать папку</h3><div class="field"><label>Новое имя</label><input id="m-name" value="'+esc(old)+'"></div><div class="macts"><button class="btn" id="m-cancel">Отмена</button><button class="btn primary" id="m-ok">Сохранить</button></div>',function(){
 var n=$('#m-name').value.trim();if(!n)return;
 api('/api/v1/folders/'+encodeURIComponent(id),{method:'PATCH',body:{name:n}}).then(function(){closeModal();toast('Переименовано','success');loadFolder();}).catch(function(er){toast(er.message,'error');});});}
-function delFolder(id){if(!confirm('Переместить папку и её файлы в КОРЗИНУ?'))return;
+function delFolder(id){if(!confirm('Переместить папку и всё её содержимое в КОРЗИНУ?'))return;
 api('/api/v1/folders/'+encodeURIComponent(id),{method:'DELETE'}).then(function(){toast('Папка в корзине','success');loadFolder();}).catch(function(er){toast(er.message,'error');});}
 function delFile(id){if(!confirm('Переместить файл в КОРЗИНУ?'))return;
 api('/api/v1/files/'+encodeURIComponent(id),{method:'DELETE'}).then(function(){toast('Файл в корзине','success');loadFolder();}).catch(function(er){toast(er.message,'error');});}
@@ -1688,32 +1766,28 @@ modal('<h3>Публичная ссылка</h3><p class="mu" style="margin-botto
 $('#m-copy').onclick=function(){if(navigator.clipboard){navigator.clipboard.writeText(url).then(function(){toast('Скопировано','success');});}else{$('#m-url').select();document.execCommand('copy');}};
 $('#m-del').onclick=function(){if(!confirm('Удалить ссылку?'))return;api('/api/v1/share/'+encodeURIComponent(l.id),{method:'DELETE'}).then(function(){closeModal();toast('Ссылка удалена','success');}).catch(function(er){toast(er.message,'error');});};
 }).catch(function(er){toast(er.message,'error');});}
-
-// ===== КОРЗИНА =====
 $('#trash-btn').onclick=function(){loadTrash();};
 function backToFiles(){state.cur='';state.path=[];loadFolder();}
 function loadTrash(){state.view='trash';crumbs();var tb=$('#rows');
-tb.innerHTML='<tr><td colspan="5" class="empty">Загрузка...</td></tr>';$('#empty').classList.add('hidden');
+tb.innerHTML='<tr><td colspan="5" class="empty">Загрузка...</td></tr>';$('#empty').classList.add('hidden');tb.onclick=null;
 api('/api/v1/trash').then(function(d){var items=d.items||[];tb.innerHTML='';
 if(!items.length){$('#empty').textContent='Корзина пуста';$('#empty').classList.remove('hidden');return;}
 $('#empty').classList.add('hidden');
 items.forEach(function(it){var tr=document.createElement('tr');
-tr.innerHTML='<td>🗑 '+esc(it.originalName)+'</td><td>был в: '+esc(it.originalFolderName||'корень')+'</td><td>'+fmt(it.size)+'</td><td>'+fmtDate(it.deletedAt)+'</td>'+
+var ic=it.type==='folder'?'📁':'';
+var meta=it.type==='folder'?('папка: '+(it.fileCount||0)+' файл., '+(it.folderCount||0)+' влож. папок'):('был в: '+esc(it.originalFolderName||'корень'));
+tr.innerHTML='<td>'+ic+' '+esc(it.originalName)+'</td><td>'+meta+'</td><td>'+fmt(it.size)+'</td><td>'+fmtDate(it.deletedAt)+'</td>'+
 '<td class="acts"><button class="btn small" data-a="res" data-id="'+it.id+'">♻️ Восстановить</button>'+
 '<button class="btn small danger" data-a="pur" data-id="'+it.id+'">❌ Навсегда</button></td>';tb.appendChild(tr);});
 tb.onclick=function(e){var b=e.target.closest('button');if(!b)return;var id=b.dataset.id;
-if(b.dataset.a==='res'){api('/api/v1/trash/'+id+'/restore',{method:'POST'}).then(function(){toast('Файл восстановлен','success');loadTrash();}).catch(function(er){toast(er.message,'error');});}
+if(b.dataset.a==='res'){api('/api/v1/trash/'+id+'/restore',{method:'POST'}).then(function(){toast('Восстановлено','success');loadTrash();}).catch(function(er){toast(er.message,'error');});}
 if(b.dataset.a==='pur'){if(!confirm('Удалить НАВСЕГДА? Вернуть будет невозможно.'))return;
 api('/api/v1/trash/'+id,{method:'DELETE'}).then(function(){toast('Удалено навсегда','success');loadTrash();}).catch(function(er){toast(er.message,'error');});}};
 }).catch(function(er){tb.innerHTML='<tr><td colspan="5" class="empty">Ошибка: '+esc(er.message)+'</td></tr>';});}
-
-// ===== MODAL =====
 function modal(html,onOk){$('#modal').innerHTML=html;$('#modal-bg').classList.remove('hidden');
 $('#m-cancel').onclick=closeModal;if(onOk)$('#m-ok').onclick=onOk;}
 function closeModal(){$('#modal-bg').classList.add('hidden');}
 $('#modal-bg').onclick=function(e){if(e.target.id==='modal-bg')closeModal();};
-
-// ===== PUBLIC SHARE =====
 function viewShare(t){$('#auth').classList.add('hidden');$('#app').classList.add('hidden');$('#shareview').classList.remove('hidden');
 api('/api/v1/share/'+encodeURIComponent(t)).then(function(d){var box=$('#sharebox');
 if(d.resourceType==='file'){var f=d.file;box.innerHTML='<h3>'+icon(f.contentType)+' '+esc(f.name)+'</h3><p class="mu" style="margin:8px 0">'+fmt(f.size)+'</p><a class="btn primary" href="/api/v1/share/'+encodeURIComponent(t)+'/download" download>⬇️ Скачать</a>';return;}
@@ -1721,7 +1795,6 @@ var h='<h3>📁 '+esc(d.folder.name)+'</h3><table style="margin-top:10px"><thead
 (d.items.folders||[]).forEach(function(x){h+='<tr><td>📁 '+esc(x.name)+'</td><td>—</td><td></td></tr>';});
 (d.items.files||[]).forEach(function(x){h+='<tr><td>'+icon(x.contentType)+' '+esc(x.name)+'</td><td>'+fmt(x.size)+'</td><td><a class="btn small primary" href="/api/v1/share/'+encodeURIComponent(t)+'/download?fileID='+encodeURIComponent(x.id)+'" download>⬇️</a></td></tr>';});
 box.innerHTML=h+'</tbody></table>';}).catch(function(er){$('#sharebox').innerHTML='<div class="empty">❌ '+esc(er.message)+'</div>';});}
-
 (function(){var q=new URLSearchParams(location.search);var t=q.get('share');
 dlog('info','App initialized',{hasToken:!!state.token,share:!!t});
 if(t){viewShare(t);return;}
