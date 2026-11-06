@@ -1,5 +1,12 @@
 {
   "users": {
+    "1d1d1aa29f7a10e2f73adea4801d440d": {
+      "id": "1d1d1aa29f7a10e2f73adea4801d440d",
+      "email": "pepe@example.com",
+      "passwordHash": "e176ff3f82a76b6fda59e0bd47936a4be2cb00f12d967eec9ccfe3aff10d417a",
+      "salt": "e9968c6e6a5516acbf9c51d1a91cc8b4",
+      "createdAt": "2026-11-06T08:29:36.0321652Z"
+    },
     "b366e6841a2aaf26fe444f13055a2923": {
       "id": "b366e6841a2aaf26fe444f13055a2923",
       "email": "123123123@gmail.com",
@@ -23,17 +30,25 @@
     }
   },
   "files": {
+    "00db65d452f7f15e62d4373efe4e72bd": {
+      "id": "00db65d452f7f15e62d4373efe4e72bd",
+      "userID": "1d1d1aa29f7a10e2f73adea4801d440d",
+      "name": "9ebcb2d9ae8878b714f01e0dd1259528.jpg",
+      "size": 28942,
+      "contentType": "image/jpeg",
+      "storageKey": "54821820fb7a1efb447605dd62bd830a",
+      "folderID": "",
+      "createdAt": "2026-11-06T08:48:35.297405Z"
+    },
     "3cb6d32099b8e52d6da03857ba9f3227": {
       "id": "3cb6d32099b8e52d6da03857ba9f3227",
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "9ebcb2d9ae8878b714f01e0dd1259528.jpg",
       "size": 28942,
       "contentType": "image/jpeg",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "",
-      "versions": null,
-      "createdAt": "2026-11-02T10:06:32.0207936Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-11-02T10:06:32.0207936Z"
     },
     "6e5029dd09c8094041431812fdf8febd": {
       "id": "6e5029dd09c8094041431812fdf8febd",
@@ -41,11 +56,9 @@
       "name": "ba46e67e9518c20a2a66a820c43aa81a.jpg",
       "size": 104326,
       "contentType": "image/jpeg",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "",
-      "versions": null,
-      "createdAt": "2026-11-02T10:17:42.0025623Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-11-02T10:17:42.0025623Z"
     },
     "82653ddd3ee5a4823331c7f4cb50d070": {
       "id": "82653ddd3ee5a4823331c7f4cb50d070",
@@ -53,11 +66,9 @@
       "name": "Иавнов Арётм ПК магазин.txt",
       "size": 29160,
       "contentType": "text/plain",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "",
-      "versions": null,
-      "createdAt": "2026-10-05T09:49:50.9510293Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-10-05T09:49:50.9510293Z"
     },
     "866864818603076e33a347b2b4343a55": {
       "id": "866864818603076e33a347b2b4343a55",
@@ -65,11 +76,9 @@
       "name": "9ebcb2d9ae8878b714f01e0dd1259528.jpg",
       "size": 28942,
       "contentType": "image/jpeg",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "be77fc276fc48b67de7bfb135e1669a6",
-      "versions": null,
-      "createdAt": "2026-10-05T09:51:02.5825307Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-10-05T09:51:02.5825307Z"
     },
     "8cd94d8dd0d4d7865b24713358724200": {
       "id": "8cd94d8dd0d4d7865b24713358724200",
@@ -77,11 +86,9 @@
       "name": "ba46e67e9518c20a2a66a820c43aa81a.jpg",
       "size": 104326,
       "contentType": "image/jpeg",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "be77fc276fc48b67de7bfb135e1669a6",
-      "versions": null,
-      "createdAt": "2026-10-05T09:47:17.1435156Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-10-05T09:47:17.1435156Z"
     },
     "9b38d01f39bdb9b3a4d056499734b1b4": {
       "id": "9b38d01f39bdb9b3a4d056499734b1b4",
@@ -89,11 +96,9 @@
       "name": "38e811620fe16b2e4a4e42d95b44a9ca.jpg",
       "size": 52929,
       "contentType": "image/jpeg",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "be77fc276fc48b67de7bfb135e1669a6",
-      "versions": null,
-      "createdAt": "2026-10-05T09:48:57.521213Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-10-05T09:48:57.521213Z"
     },
     "a1f92916dd870db6471b8eb8156ada2b": {
       "id": "a1f92916dd870db6471b8eb8156ada2b",
@@ -101,11 +106,9 @@
       "name": "Аннотация 2026-09-23 144807.png",
       "size": 18515,
       "contentType": "image/png",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "be77fc276fc48b67de7bfb135e1669a6",
-      "versions": null,
-      "createdAt": "2026-10-05T08:42:36.0115805Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-10-05T08:42:36.0115805Z"
     },
     "b2a9873059ab0d5a64042a9e4f98e0f9": {
       "id": "b2a9873059ab0d5a64042a9e4f98e0f9",
@@ -113,11 +116,9 @@
       "name": "Аннотация 2026-09-23 144807.png",
       "size": 18515,
       "contentType": "image/png",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "be77fc276fc48b67de7bfb135e1669a6",
-      "versions": null,
-      "createdAt": "2026-10-05T09:43:18.3347055Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-10-05T09:43:18.3347055Z"
     },
     "b604bfbf25511b82ed724814949fbaa4": {
       "id": "b604bfbf25511b82ed724814949fbaa4",
@@ -125,11 +126,9 @@
       "name": "Аннотация 2026-09-23 144807.png",
       "size": 18515,
       "contentType": "image/png",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "",
-      "versions": null,
-      "createdAt": "2026-10-05T08:35:38.5688367Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-10-05T08:35:38.5688367Z"
     },
     "fd85c9b8f0d39e286fed66998d321d41": {
       "id": "fd85c9b8f0d39e286fed66998d321d41",
@@ -137,11 +136,9 @@
       "name": "+-.docx",
       "size": 13579,
       "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "fileType": "",
+      "storageKey": "",
       "folderID": "",
-      "versions": null,
-      "createdAt": "2026-10-05T09:49:38.3665821Z",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "createdAt": "2026-10-05T09:49:38.3665821Z"
     }
   },
   "folders": {
@@ -150,6 +147,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "1",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-05T11:50:36.2615545Z"
     },
     "893b18a8e491313ffaada20daa1ced83": {
@@ -157,6 +156,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "123",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-02T10:36:44.3282451Z"
     },
     "8c29b7f19878755b123f886023cc65fb": {
@@ -164,6 +165,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "4335432452345",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-02T10:07:30.5958264Z"
     },
     "9db32e93c4d60f2e9ce6394c137113eb": {
@@ -171,6 +174,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "123",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-02T10:06:40.6840083Z"
     },
     "a0216ab5918ef96d90afdb3524d8be02": {
@@ -178,6 +183,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "1",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-05T11:45:57.9596115Z"
     },
     "a860c5d1cd3e53e80785a12fb1a5a01a": {
@@ -185,6 +192,8 @@
       "userID": "b366e6841a2aaf26fe444f13055a2923",
       "name": "123",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-02T10:18:18.7262282Z"
     },
     "a953844f24335570dfb1020cc7fb716f": {
@@ -192,6 +201,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "7676",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-02T10:36:48.2079681Z"
     },
     "b039c81c1aa669c29ba98d1edaf1a574": {
@@ -199,6 +210,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "1",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-05T11:46:00.7183976Z"
     },
     "be77fc276fc48b67de7bfb135e1669a6": {
@@ -206,6 +219,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "Бэээ",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-10-12T09:53:01.4047535Z"
     },
     "c6eec4e3a8bc9f1e05e30296c086e5a2": {
@@ -213,6 +228,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "23423434",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-02T10:17:48.2848786Z"
     },
     "f7ad98216a36db3c574ceacf7717f6a7": {
@@ -220,6 +237,8 @@
       "userID": "b366e6841a2aaf26fe444f13055a2923",
       "name": "jkl",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-02T10:20:06.5812507Z"
     },
     "fc7d7f0a37af24beacc81b03b2d09175": {
@@ -227,6 +246,8 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "5656",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-02T10:07:37.1000208Z"
     },
     "fe9f7c58d2b246379dedd0d3c4d5bf9d": {
@@ -234,11 +255,21 @@
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
       "name": "1",
       "parentID": "",
+      "size": 0,
+      "fileCount": 0,
       "createdAt": "2026-11-05T11:50:39.317229Z"
     }
   },
   "trash": {},
   "shareLinks": {
+    "07388dcd9ecd722a052ad82b9543752c": {
+      "id": "07388dcd9ecd722a052ad82b9543752c",
+      "userID": "1d1d1aa29f7a10e2f73adea4801d440d",
+      "resourceType": "folder",
+      "resourceID": "63f9609ba95c958c94123a1a234e3b83",
+      "token": "3293300822338bf0c8daa2f961f9dabfe852612bd5167d9cb543b8a5e2316e9b",
+      "createdAt": "2026-11-06T08:30:23.4653842Z"
+    },
     "159e52bd9b0389ee361d1286fbdf1cf4": {
       "id": "159e52bd9b0389ee361d1286fbdf1cf4",
       "userID": "b41a28aa2ed19441e837a07e27031ffa",
@@ -275,9 +306,15 @@
   "emailIndex": {
     "123123123@gmail.com": "b366e6841a2aaf26fe444f13055a2923",
     "123123@example.com": "b41a28aa2ed19441e837a07e27031ffa",
+    "pepe@example.com": "1d1d1aa29f7a10e2f73adea4801d440d",
     "test@example.com": "fb494190974c1b03417778ebd6196d35"
   },
   "sessions": {
+    "74bc3cf559e7fc8b23be7e40a8ec4c867c787af164a28e0c56039d2455316a1c": {
+      "token": "74bc3cf559e7fc8b23be7e40a8ec4c867c787af164a28e0c56039d2455316a1c",
+      "userID": "1d1d1aa29f7a10e2f73adea4801d440d",
+      "expiresAt": "2026-11-07T08:39:46.9924714Z"
+    },
     "8dbf4b3a023f0fa53e94674973372aab9d1b0bbc35e9baf407ab491f1cd9d750": {
       "token": "8dbf4b3a023f0fa53e94674973372aab9d1b0bbc35e9baf407ab491f1cd9d750",
       "userID": "b41a28aa2ed19441e837a07e27031ffa",

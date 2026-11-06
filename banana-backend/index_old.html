@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banana Cloud Storage</title>
+<style>
+  :root {
+    --bg:#0f1115; --bg2:#161a22; --bg3:#1d222d; --border:#2a3140;
+    --text:#e6e8ee; --muted:#8a93a6; --primary:#ffd23f; --primary2:#f5b800;
+    --danger:#ef4444; --success:#22c55e; --debug-height:200px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:14px;overflow:hidden}
+  button,input,select{font-family:inherit;font-size:14px}
+  a{color:var(--primary);text-decoration:none}
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .auth-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:32px;width:100%;max-width:400px}
+  .logo{font-size:28px;font-weight:700;margin-bottom:4px}
+  .logo span{color:var(--primary)}
+  .auth-sub{color:var(--muted);margin-bottom:24px}
+  .tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--bg3);padding:4px;border-radius:10px}
+  .tab{flex:1;padding:10px;text-align:center;border-radius:8px;cursor:pointer;color:var(--muted);font-weight:500}
+  .tab.active{background:var(--bg2);color:var(--text)}
+  .field{margin-bottom:14px}
+  .field label{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .field input{width:100%;padding:11px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none}
+  .field input:focus{border-color:var(--primary)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border-radius:8px;border:1px solid transparent;cursor:pointer;font-weight:500;background:var(--bg3);color:var(--text)}
+  .btn:hover{background:var(--border)}
+  .btn-primary{background:var(--primary);color:#1a1a1a}
+  .btn-primary:hover{background:var(--primary2)}
+  .btn-danger{background:transparent;border-color:var(--danger);color:var(--danger)}
+  .btn-sm{padding:6px 10px;font-size:12px}
+  .btn-block{width:100%}
+  .err{color:var(--danger);font-size:13px;margin-top:8px;min-height:18px}
+  .app{display:none;height:100vh;flex-direction:column}
+  .app.visible{display:flex}
+  header.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+  header .logo{margin:0;font-size:20px}
+  header .spacer{flex:1}
+  .user-chip{color:var(--muted);font-size:13px}
+  .toolbar{padding:16px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border);flex-shrink:0}
+  .breadcrumbs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .crumb{color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:6px}
+  .crumb:hover{background:var(--bg3);color:var(--text)}
+  .crumb.current{color:var(--text);cursor:default}
+  .crumb-sep{color:var(--border)}
+  main.content{flex:1;padding:24px;overflow:auto;min-height:0}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0;background:var(--bg);z-index:2}
+  tr:hover td{background:var(--bg2)}
+  .row-folder td:first-child,.row-file td:first-child{cursor:pointer}
+  .row-folder td:first-child:hover,.row-file td:first-child:hover{color:var(--primary)}
+  .icon{margin-right:8px}
+  .empty{text-align:center;padding:60px 20px;color:var(--muted)}
+  .actions-cell{display:flex;gap:6px}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal-backdrop.visible{display:flex}
+  .modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:440px}
+  .modal h3{margin:0 0 16px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 18px;z-index:200;opacity:0;transform:translateY(10px);transition:.2s;max-width:360px}
+  .toast.visible{opacity:1;transform:translateY(0)}
+  .toast.error{border-color:var(--danger)}
+  .toast.success{border-color:var(--success)}
+  .debug-panel{position:fixed;bottom:0;left:0;right:0;height:var(--debug-height);background:#0a0c0f;border-top:2px solid var(--primary);display:flex;flex-direction:column;z-index:1000}
+  .debug-panel.hidden{display:none}
+  .debug-header{padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;cursor:ns-resize;user-select:none}
+  .debug-header h4{margin:0;color:var(--primary);font-size:13px}
+  .debug-header-actions{display:flex;gap:6px;align-items:center}
+  .debug-content{padding:8px;overflow-y:auto;font-family:Consolas,Monaco,monospace;font-size:11px;flex:1;min-height:0}
+  .debug-log{padding:4px 8px;margin:2px 0;border-left:3px solid var(--border);background:var(--bg2);word-break:break-word}
+  .debug-log.request{border-left-color:#3b82f6}
+  .debug-log.response{border-left-color:var(--success)}
+  .debug-log.error{border-left-color:var(--danger)}
+  .debug-log.info{border-left-color:var(--primary)}
+  .debug-time{color:var(--muted);margin-right:8px}
+  .debug-method{color:#3b82f6;font-weight:bold;margin-right:8px}
+  .debug-status.ok{color:var(--success);margin-right:8px}
+  .debug-status.err{color:var(--danger);margin-right:8px}
+  .debug-toggle-btn{position:fixed;bottom:16px;right:16px;z-index:999;background:var(--primary);color:#1a1a1a;border:none;border-radius:50%;width:44px;height:44px;font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center}
+  .debug-toggle-btn.visible{display:flex}
+  .link-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;gap:8px;align-items:center}
+  .link-box input{flex:1;background:transparent;border:none;color:var(--text);outline:none;font-family:monospace;font-size:13px}
+  .share-wrap{min-height:100vh;padding:40px 20px;overflow:auto}
+  .share-card{max-width:700px;margin:0 auto;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:24px}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen" class="auth-wrap">
+  <div class="auth-card">
+    <div class="logo">🍌 Banana <span>Cloud</span></div>
+    <div class="auth-sub">Приватное облачное хранилище</div>
+    <div class="tabs">
+      <div class="tab active" data-tab="login">Вход</div>
+      <div class="tab" data-tab="register">Регистрация</div>
+    </div>
+    <form id="login-form">
+      <div class="field"><label>Email</label><input type="email" name="email" required></div>
+      <div class="field"><label>Пароль</label><input type="password" name="password" required minlength="6"></div>
+      <div class="err" id="login-err"></div>
+      <button type="submit" class="btn btn-primary btn-block">Войти</button>
+    </form>
+    <form id="register-form" class="hidden">
+      <div class="field"><label>Email</label><input type="email" name="email" required></div>
+      <div class="field"><label>Пароль (мин. 6)</label><input type="password" name="password" required minlength="6"></div>
+      <div class="err" id="register-err"></div>
+      <button type="submit" class="btn btn-primary btn-block">Создать аккаунт</button>
+    </form>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen" class="app">
+  <header class="topbar">
+    <div class="logo">🍌 Banana <span>Cloud</span></div>
+    <div class="spacer"></div>
+    <div class="user-chip" id="user-email"></div>
+    <button class="btn btn-sm" id="logout-btn">Выйти</button>
+  </header>
+  <div class="toolbar">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    <div style="flex:1"></div>
+    <button class="btn btn-sm" id="new-folder-btn">📁 Новая папка</button>
+    <button class="btn btn-sm btn-primary" id="upload-btn">⬆️ Загрузить</button>
+    <input type="file" id="file-input" multiple class="hidden">
+  </div>
+  <main class="content">
+    <table>
+      <thead><tr><th>Имя</th><th>Тип</th><th>Размер</th><th>Создано</th><th>Действия</th></tr></thead>
+      <tbody id="items-body"></tbody>
+    </table>
+    <div id="empty-state" class="empty hidden">Папка пуста</div>
+  </main>
+</div>
+
+<!-- SHARE VIEW -->
+<div id="share-screen" class="share-wrap hidden">
+  <div class="share-card">
+    <div class="logo">🍌 Banana <span>Cloud</span></div>
+    <div id="share-content" style="margin-top:16px">Загрузка...</div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-backdrop"><div class="modal" id="modal-content"></div></div>
+<div class="toast" id="toast"></div>
+
+<button class="debug-toggle-btn" id="debug-toggle-btn">🔍</button>
+<div class="debug-panel" id="debug-panel">
+  <div class="debug-header" id="debug-header">
+    <h4>🔍 Debug Log</h4>
+    <div class="debug-header-actions">
+      <button class="btn btn-sm" id="debug-clear-btn">🗑 Очистить</button>
+      <button class="btn btn-sm btn-danger" id="debug-close-btn">✕ Закрыть</button>
+    </div>
+  </div>
+  <div class="debug-content" id="debug-content"></div>
+</div>
+
+<script>
+// ===== DEBUG PANEL =====
+const debugPanel = document.getElementById('debug-panel');
+const debugToggleBtn = document.getElementById('debug-toggle-btn');
+const ds = JSON.parse(localStorage.getItem('debug_state') || '{}');
+if (ds.hidden) { debugPanel.classList.add('hidden'); debugToggleBtn.classList.add('visible'); }
+if (ds.height) document.documentElement.style.setProperty('--debug-height', ds.height + 'px');
+function saveDebugState() {
+  localStorage.setItem('debug_state', JSON.stringify({
+    hidden: debugPanel.classList.contains('hidden'), height: debugPanel.offsetHeight
+  }));
+}
+document.getElementById('debug-close-btn').onclick = () => { debugPanel.classList.add('hidden'); debugToggleBtn.classList.add('visible'); saveDebugState(); };
+debugToggleBtn.onclick = () => { debugPanel.classList.remove('hidden'); debugToggleBtn.classList.remove('visible'); saveDebugState(); };
+document.getElementById('debug-clear-btn').onclick = () => { document.getElementById('debug-content').innerHTML = ''; };
+let resizing = false, rStartY = 0, rStartH = 0;
+document.getElementById('debug-header').addEventListener('mousedown', e => {
+  resizing = true; rStartY = e.clientY; rStartH = debugPanel.offsetHeight; e.preventDefault();
+});
+document.addEventListener('mousemove', e => {
+  if (!resizing) return;
+  const h = Math.max(80, Math.min(rStartH + (rStartY - e.clientY), window.innerHeight - 100));
+  document.documentElement.style.setProperty('--debug-height', h + 'px');
+});
+document.addEventListener('mouseup', () => { if (resizing) { resizing = false; saveDebugState(); } });
+
+function debugLog(type, message, data) {
+  const t = new Date().toLocaleTimeString('ru-RU', {hour12:false});
+  const el = document.createElement('div');
+  el.className = 'debug-log ' + type;
+  let html = '<span class="debug-time">[' + t + ']</span>';
+  if (type === 'request') {
+    const p = message.split(' ');
+    html += '<span class="debug-method">' + p[0] + '</span><span>' + p.slice(1).join(' ') + '</span>';
+  } else if (type === 'response') {
+    const p = message.split(' ');
+    html += '<span class="debug-status ' + (p[0][0] === '2' ? 'ok' : 'err') + '">' + p[0] + '</span><span>' + p.slice(1).join(' ') + '</span>';
+  } else html += '<span>' + message + '</span>';
+  if (data !== undefined && data !== null) {
+    let s = JSON.stringify(data); if (s.length > 300) s = s.slice(0,300) + '…';
+    html += '<div style="margin-top:4px;color:var(--muted);font-size:10px;white-space:pre-wrap">' + s.replace(/</g,'&lt;') + '</div>';
+  }
+  el.innerHTML = html;
+  const c = document.getElementById('debug-content');
+  c.appendChild(el); c.scrollTop = c.scrollHeight;
+  console.log('[' + type + ']', message, data || '');
+}
+
+// ===== STATE / API =====
+const state = {
+  token: localStorage.getItem('banana_token'),
+  email: localStorage.getItem('banana_email'),
+  currentFolderId: '',
+  folderPath: []
+};
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+async function api(path, opts = {}) {
+  const headers = opts.headers || {};
+  if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+  let body = opts.body;
+  if (body && !(body instanceof FormData) && typeof body === 'object') {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(body);
+  }
+  const method = opts.method || 'GET';
+  debugLog('request', method + ' ' + path, opts.body);
+  const res = await fetch(path, Object.assign({}, opts, {headers, body}));
+  const text = await res.text();
+  let data; try { data = JSON.parse(text); } catch (e) { data = text; }
+  debugLog('response', res.status + ' ' + path, data);
+  if (!res.ok) {
+    const msg = (data && data.error && data.error.message) || ('HTTP ' + res.status);
+    throw new Error(msg);
+  }
+  return data;
+}
+
+let toastTimer;
+function toast(msg, type) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast visible ' + (type || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('visible'), 3000);
+}
+
+// ===== AUTH =====
+$$('.tab').forEach(t => t.onclick = () => {
+  $$('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $('#login-form').classList.toggle('hidden', t.dataset.tab !== 'login');
+  $('#register-form').classList.toggle('hidden', t.dataset.tab !== 'register');
+});
+$('#login-form').onsubmit = async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const email = fd.get('email').toString().trim();
+  $('#login-err').textContent = '';
+  try {
+    const d = await api('/api/v1/auth/login', {method:'POST', body:{email, password: fd.get('password').toString()}});
+    state.token = d.token; state.email = email;
+    localStorage.setItem('banana_token', d.token);
+    localStorage.setItem('banana_email', email);
+    showApp();
+  } catch (err) { $('#login-err').textContent = err.message; }
+};
+$('#register-form').onsubmit = async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  $('#register-err').textContent = '';
+  try {
+    await api('/api/v1/auth/register', {method:'POST', body:{email: fd.get('email').toString().trim(), password: fd.get('password').toString()}});
+    toast('Аккаунт создан — войдите', 'success');
+    $('.tab[data-tab="login"]').click();
+  } catch (err) { $('#register-err').textContent = err.message; }
+};
+$('#logout-btn').onclick = async () => {
+  try { await api('/api/v1/auth/logout', {method:'POST'}); } catch (e) {}
+  state.token = null; state.email = null;
+  localStorage.removeItem('banana_token'); localStorage.removeItem('banana_email');
+  showAuth();
+};
+
+function showAuth() { $('#auth-screen').style.display='flex'; $('#app-screen').classList.remove('visible'); $('#share-screen').classList.add('hidden'); }
+function showApp() {
+  $('#auth-screen').style.display='none'; $('#share-screen').classList.add('hidden');
+  $('#app-screen').classList.add('visible');
+  $('#user-email').textContent = state.email || '';
+  state.currentFolderId = ''; state.folderPath = [];
+  loadFolder();
+}
+
+// ===== ЗАГРУЗКА ПАПКИ (универсально: работает и со старым, и с новым бэкендом) =====
+async function loadFolder() {
+  const tbody = $('#items-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="empty">Загрузка...</td></tr>';
+  renderBreadcrumbs();
+  try {
+    let folders = [], files = [];
+    if (!state.currentFolderId) {
+      // КОРЕНЬ: используем списки с пустым ID — работает на любой версии сервера
+      const [fr, fl] = await Promise.all([
+        api('/api/v1/folders?parentID='),
+        api('/api/v1/files?folderID=')
+      ]);
+      folders = fr.items || []; files = fl.items || [];
+    } else {
+      const d = await api('/api/v1/folders/' + encodeURIComponent(state.currentFolderId) + '/items');
+      folders = d.folders || []; files = d.files || [];
+    }
+    debugLog('info', 'Loaded', {folders: folders.length, files: files.length});
+    renderItems(folders, files);
+  } catch (err) {
+    debugLog('error', 'Load failed: ' + err.message);
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Ошибка: ' + escapeHtml(err.message) + '</td></tr>';
+  }
+}
+
+function renderBreadcrumbs() {
+  const bc = $('#breadcrumbs'); bc.innerHTML = '';
+  const root = document.createElement('span');
+  root.className = 'crumb' + (state.folderPath.length ? '' : ' current');
+  root.textContent = '🏠 Мои файлы';
+  root.onclick = () => { state.currentFolderId=''; state.folderPath=[]; loadFolder(); };
+  bc.appendChild(root);
+  state.folderPath.forEach((p,i) => {
+    const sep = document.createElement('span'); sep.className='crumb-sep'; sep.textContent='›'; bc.appendChild(sep);
+    const c = document.createElement('span');
+    c.className = 'crumb' + (i === state.folderPath.length-1 ? ' current' : '');
+    c.textContent = p.name;
+    c.onclick = () => { state.folderPath = state.folderPath.slice(0,i+1); state.currentFolderId = p.id; loadFolder(); };
+    bc.appendChild(c);
+  });
+}
+
+function renderItems(folders, files) {
+  const tbody = $('#items-body'); tbody.innerHTML = '';
+  if (!folders.length && !files.length) { $('#empty-state').classList.remove('hidden'); return; }
+  $('#empty-state').classList.add('hidden');
+
+  folders.forEach(f => {
+    const tr = document.createElement('tr'); tr.className = 'row-folder';
+    const sizeCell = (typeof f.size === 'number') ? fmtSize(f.size) + ' (' + (f.fileCount||0) + ' файлов)' : '—';
+    tr.innerHTML =
+      '<td><span class="icon">📁</span>' + escapeHtml(f.name) + '</td>' +
+      '<td>Папка</td><td>' + sizeCell + '</td><td>' + fmtDate(f.createdAt) + '</td>' +
+      '<td class="actions-cell">' +
+        '<button class="btn btn-sm" data-act="rename-folder" data-id="' + f.id + '" data-name="' + escapeAttr(f.name) + '">✏️</button>' +
+        '<button class="btn btn-sm" data-act="share-folder" data-id="' + f.id + '">🔗</button>' +
+        '<button class="btn btn-sm btn-danger" data-act="delete-folder" data-id="' + f.id + '">🗑</button>' +
+      '</td>';
+    tr.querySelector('td').onclick = () => { state.currentFolderId = f.id; state.folderPath.push({id:f.id,name:f.name}); loadFolder(); };
+    tbody.appendChild(tr);
+  });
+
+  files.forEach(f => {
+    const tr = document.createElement('tr'); tr.className = 'row-file';
+    tr.innerHTML =
+      '<td><span class="icon">' + fileIcon(f.contentType) + '</span>' + escapeHtml(f.name) + '</td>' +
+      '<td>' + escapeHtml(f.contentType || 'file') + '</td><td>' + fmtSize(f.size) + '</td><td>' + fmtDate(f.createdAt) + '</td>' +
+      '<td class="actions-cell">' +
+        '<a class="btn btn-sm" href="' + f.downloadUrl + '" download>⬇️</a>' +
+        '<button class="btn btn-sm" data-act="move-file" data-id="' + f.id + '">📦</button>' +
+        '<button class="btn btn-sm" data-act="share-file" data-id="' + f.id + '">🔗</button>' +
+        '<button class="btn btn-sm btn-danger" data-act="delete-file" data-id="' + f.id + '">🗑</button>' +
+      '</td>';
+    tbody.appendChild(tr);
+  });
+
+  tbody.onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const id = b.dataset.id;
+    if (b.dataset.act === 'rename-folder') openRenameFolder(id, b.dataset.name);
+    if (b.dataset.act === 'delete-folder') delFolder(id);
+    if (b.dataset.act === 'delete-file') delFile(id);
+    if (b.dataset.act === 'move-file') openMove(id);
+    if (b.dataset.act === 'share-file') makeShare('file', id);
+    if (b.dataset.act === 'share-folder') makeShare('folder', id);
+  };
+}
+
+// ===== ДЕЙСТВИЯ =====
+$('#new-folder-btn').onclick = () => openModal(
+  '<h3>Новая папка</h3><div class="field"><label>Имя</label><input id="nf-name" autofocus></div>' +
+  '<div class="err" id="nf-err"></div>' +
+  '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="nf-ok">Создать</button></div>',
+  async () => {
+    const name = $('#nf-name').value.trim(); if (!name) return;
+    try {
+      await api('/api/v1/folders', {method:'POST', body:{name, parentID: state.currentFolderId}});
+      closeModal(); toast('Папка создана', 'success'); loadFolder();
+    } catch (e) {
+      if (/exists/i.test(e.message)) $('#nf-err').textContent = 'Такое имя уже занято';
+      else toast(e.message, 'error');
+    }
+  }
+);
+
+$('#upload-btn').onclick = () => $('#file-input').click();
+$('#file-input').onchange = async e => {
+  const list = [...e.target.files]; if (!list.length) return;
+  for (const f of list) {
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      await api('/api/v1/files?folderID=' + encodeURIComponent(state.currentFolderId), {method:'POST', body: fd});
+    } catch (err) { toast('Ошибка загрузки ' + f.name + ': ' + err.message, 'error'); e.target.value=''; return; }
+  }
+  e.target.value = '';
+  toast('Загружено: ' + list.length, 'success');
+  loadFolder();
+};
+
+function openRenameFolder(id, old) {
+  openModal(
+    '<h3>Переименовать</h3><div class="field"><label>Новое имя</label><input id="rf-name" value="' + escapeAttr(old) + '"></div>' +
+    '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="rf-ok">Сохранить</button></div>',
+    async () => {
+      const name = $('#rf-name').value.trim(); if (!name) return;
+      try { await api('/api/v1/folders/' + encodeURIComponent(id), {method:'PATCH', body:{name}}); closeModal(); toast('Переименовано','success'); loadFolder(); }
+      catch (e) { toast(e.message,'error'); }
+    }
+  );
+}
+
+async function delFolder(id) {
+  if (!confirm('Удалить папку со всем содержимым?')) return;
+  try { await api('/api/v1/folders/' + encodeURIComponent(id), {method:'DELETE'}); toast('Удалено','success'); loadFolder(); }
+  catch (e) { toast(e.message,'error'); }
+}
+async function delFile(id) {
+  if (!confirm('Удалить файл?')) return;
+  try { await api('/api/v1/files/' + encodeURIComponent(id), {method:'DELETE'}); toast('Удалено','success'); loadFolder(); }
+  catch (e) { toast(e.message,'error'); }
+}
+
+async function openMove(fileId) {
+  let opts = '<option value="">🏠 Корень</option>';
+  try {
+    const all = await collectFolders('', 0);
+    all.forEach(f => { opts += '<option value="' + f.id + '">' + '—'.repeat(f.depth) + ' ' + escapeHtml(f.name) + '</option>'; });
+  } catch (e) {}
+  openModal(
+    '<h3>Переместить файл</h3><div class="field"><label>Куда</label><select id="mv-target" style="width:100%;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text)">' + opts + '</select></div>' +
+    '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="mv-ok">Переместить</button></div>',
+    async () => {
+      try { await api('/api/v1/files/' + encodeURIComponent(fileId) + '/move', {method:'PATCH', body:{folderID: $('#mv-target').value}}); closeModal(); toast('Перемещено','success'); loadFolder(); }
+      catch (e) { toast(e.message,'error'); }
+    }
+  );
+}
+async function collectFolders(parentID, depth) {
+  const out = [];
+  const r = await api('/api/v1/folders?parentID=' + encodeURIComponent(parentID));
+  for (const f of (r.items || [])) { out.push({id:f.id, name:f.name, depth}); out.push(...await collectFolders(f.id, depth+1)); }
+  return out;
+}
+
+async function makeShare(type, id) {
+  try {
+    const link = await api('/api/v1/share', {method:'POST', body:{resourceType: type, resourceID: id}});
+    const url = location.origin + '/?share=' + link.token;
+    openModal(
+      '<h3>Публичная ссылка</h3><p style="color:var(--muted);margin-bottom:12px">Доступна без входа</p>' +
+      '<div class="link-box"><input id="share-url" readonly value="' + escapeAttr(url) + '"><button class="btn btn-sm btn-primary" id="copy-link">Копировать</button></div>' +
+      '<div class="modal-actions"><button class="btn btn-danger" id="del-share">Удалить ссылку</button><button class="btn" onclick="closeModal()">Закрыть</button></div>'
+    );
+    $('#copy-link').onclick = () => { $('#share-url').select(); document.execCommand('copy'); toast('Скопировано','success'); };
+    $('#del-share').onclick = async () => {
+      if (!confirm('Удалить ссылку?')) return;
+      try { await api('/api/v1/share/' + encodeURIComponent(link.id), {method:'DELETE'}); closeModal(); toast('Ссылка удалена','success'); }
+      catch (e) { toast(e.message,'error'); }
+    };
+  } catch (e) { toast(e.message,'error'); }
+}
+
+// ===== SHARE VIEW =====
+async function viewShare(token) {
+  $('#auth-screen').style.display='none'; $('#app-screen').classList.remove('visible');
+  $('#share-screen').classList.remove('hidden');
+  const c = $('#share-content'); c.innerHTML = 'Загрузка...';
+  try {
+    const d = await api('/api/v1/share/' + encodeURIComponent(token));
+    if (d.resourceType === 'file') {
+      const f = d.file;
+      c.innerHTML = '<h2>' + fileIcon(f.contentType) + ' ' + escapeHtml(f.name) + '</h2>' +
+        '<p style="color:var(--muted);margin:8px 0 16px">' + fmtSize(f.size) + ' • ' + escapeHtml(f.contentType) + '</p>' +
+        '<a class="btn btn-primary" href="/api/v1/share/' + token + '/download?fileID=' + f.id + '" download>⬇️ Скачать</a>';
+    } else {
+      let html = '<h2>📁 ' + escapeHtml(d.folder.name) + '</h2><table style="margin-top:12px"><thead><tr><th>Имя</th><th>Размер</th><th></th></tr></thead><tbody>';
+      (d.items.folders||[]).forEach(f => html += '<tr><td>📁 ' + escapeHtml(f.name) + '</td><td>—</td><td></td></tr>');
+      (d.items.files||[]).forEach(f => html += '<tr><td>' + fileIcon(f.contentType) + ' ' + escapeHtml(f.name) + '</td><td>' + fmtSize(f.size) + '</td><td><a class="btn btn-sm btn-primary" href="/api/v1/share/' + token + '/download?fileID=' + f.id + '" download>⬇️</a></td></tr>');
+      html += '</tbody></table>';
+      c.innerHTML = html;
+    }
+  } catch (e) { c.innerHTML = '<div class="empty">❌ ' + escapeHtml(e.message) + '</div>'; }
+}
+
+// ===== MODAL / HELPERS =====
+function openModal(html, onSubmit) {
+  $('#modal-content').innerHTML = html;
+  $('#modal-backdrop').classList.add('visible');
+  const ok = $('#modal-content').querySelector('[id$="-ok"]');
+  if (ok && onSubmit) ok.onclick = onSubmit;
+}
+function closeModal() { $('#modal-backdrop').classList.remove('visible'); }
+$('#modal-backdrop').onclick = e => { if (e.target.id === 'modal-backdrop') closeModal(); };
+
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function escapeAttr(s){return escapeHtml(s)}
+function fmtSize(b){if(b===undefined||b===null)return '—';if(!b)return '0 B';const u=['B','KB','MB','GB','TB'];let i=0,n=b;while(n>=1024&&i<u.length-1){n/=1024;i++}return n.toFixed(n<10&&i>0?1:0)+' '+u[i]}
+function fmtDate(s){if(!s)return '—';return new Date(s).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+function fileIcon(ct){if(!ct)return '📄';if(ct.startsWith('image/'))return '🖼️';if(ct.startsWith('video/'))return '🎬';if(ct.startsWith('audio/'))return '🎵';if(ct.includes('pdf'))return '📕';if(ct.includes('zip')||ct.includes('rar')||ct.includes('tar'))return '🗜️';if(ct.includes('text')||ct.includes('json')||ct.includes('xml'))return '📝';return '📄'}
+
+// ===== ROUTING =====
+const q = new URLSearchParams(location.search);
+if (q.get('share')) viewShare(q.get('share'));
+else if (state.token) showApp();
+else showAuth();
+</script>
+</body>
+</html>
