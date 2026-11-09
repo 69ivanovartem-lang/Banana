@@ -1,144 +1,120 @@
-package handlers
+package main
 
 import (
 	"net/http"
 	"strings"
-
-	"banana-backend/store"
 )
 
-func HandleCreateFolder(dbStore *store.Store) http.HandlerFunc {
+func handleCreateFolder(store *Store) http.HandlerFunc {
 	type req struct {
 		Name     string `json:"name"`
 		ParentID string `json:"parentID"`
 	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
-
 		var q req
 		if err := readJSON(r, &q); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
-
-		q.Name = strings.TrimSpace(q.Name)
-		if q.Name == "" {
+		if strings.TrimSpace(q.Name) == "" {
 			writeError(w, http.StatusBadRequest, "folder name is required")
 			return
 		}
-
-		isDuplicate, _ := dbStore.CheckDuplicateName(userID, q.ParentID, q.Name, "")
-		if isDuplicate {
+		if store.CheckDuplicateName(userID, q.ParentID, q.Name, "") {
 			writeError(w, http.StatusConflict, "folder with this name already exists")
 			return
 		}
-
-		folder, err := dbStore.CreateFolder(userID, q.Name, q.ParentID)
+		folder, err := store.CreateFolder(userID, q.Name, q.ParentID)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid parent folder")
 			return
 		}
-
-		writeJSON(w, http.StatusCreated, folder)
+		writeJSON(w, http.StatusCreated, toFolderResponse(folder))
 	}
 }
 
-func HandleListFolders(dbStore *store.Store) http.HandlerFunc {
+func handleListFolders(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		parentID := r.URL.Query().Get("parentID")
-
-		folders := dbStore.ListFolders(userID, parentID)
-		writeJSON(w, http.StatusOK, map[string]any{"items": folders, "total": len(folders)})
+		folders := store.ListFolders(userID, parentID)
+		items := make([]folderResponse, 0, len(folders))
+		for _, f := range folders {
+			fr := toFolderResponse(f)
+			fr.Size, fr.FileCount = store.folderStats(f.ID)
+			items = append(items, fr)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
 	}
 }
 
-func HandleGetFolder(dbStore *store.Store) http.HandlerFunc {
+func handleGetFolder(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
-		folderID := r.PathValue("id")
-
-		folder, err := dbStore.GetFolderForUser(folderID, userID)
+		f, err := store.GetFolderForUser(r.PathValue("id"), userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "folder not found")
 			return
 		}
-
-		writeJSON(w, http.StatusOK, folder)
+		writeJSON(w, http.StatusOK, toFolderResponse(f))
 	}
 }
 
-func HandleGetFolderItems(dbStore *store.Store) http.HandlerFunc {
+func handleGetFolderItems(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.PathValue("id")
-
 		if folderID == "root" {
 			folderID = ""
 		}
-
-		files, folders := dbStore.GetFolderItems(userID, folderID)
-
-		for i := range folders {
-			var size int64
-			var count int
-			dbStore.CountFilesRecursive(folders[i].ID, &size, &count)
-			folders[i].Size = size
-			folders[i].FileCount = count
-		}
-
+		files, folders := store.GetFolderItems(userID, folderID)
 		writeJSON(w, http.StatusOK, map[string]any{"files": files, "folders": folders})
 	}
 }
 
-func HandleRenameFolder(dbStore *store.Store) http.HandlerFunc {
+func handleRenameFolder(store *Store) http.HandlerFunc {
 	type req struct {
 		Name string `json:"name"`
 	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
 		folderID := r.PathValue("id")
-
 		var q req
 		if err := readJSON(r, &q); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
-
-		folder, err := dbStore.RenameFolder(folderID, userID, q.Name)
+		if strings.TrimSpace(q.Name) == "" {
+			writeError(w, http.StatusBadRequest, "folder name is required")
+			return
+		}
+		folder, err := store.GetFolderForUser(folderID, userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "folder not found")
 			return
 		}
-
-		writeJSON(w, http.StatusOK, folder)
+		if store.CheckDuplicateName(userID, folder.ParentID, q.Name, folderID) {
+			writeError(w, http.StatusConflict, "folder with this name already exists")
+			return
+		}
+		renamed, err := store.RenameFolder(folderID, userID, q.Name)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "folder not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, toFolderResponse(renamed))
 	}
 }
 
-func HandleDeleteFolder(dbStore *store.Store) http.HandlerFunc {
+func handleDeleteFolder(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
-		folderID := r.PathValue("id")
-
-		folder, err := dbStore.GetFolderForUser(folderID, userID)
+		item, err := store.DeleteFolder(r.PathValue("id"), userID)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "folder not found")
 			return
 		}
-
-		parentID := folder.ParentID
-
-		if err := dbStore.DeleteFolder(folderID, userID); err != nil {
-			writeError(w, http.StatusNotFound, "folder not found")
-			return
-		}
-
-		if parentID != "" {
-			dbStore.UpdateFolderStats(parentID)
-		}
-
-		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "trashId": item.ID})
 	}
 }
