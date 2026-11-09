@@ -10,4 +10,7 @@ services:
       BANANA_ADDR: 0.0.0.0
       BANANA_PORT: "8080"
     volumes:
-      - ./data:/app/data
+      - banana-data:/app/data
+
+volumes:
+  banana-data:
