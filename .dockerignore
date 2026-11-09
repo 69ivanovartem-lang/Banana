@@ -1,0 +1,7 @@
+data/
+*.tmp
+*.exe
+.git/
+.gitignore
+Dockerfile
+docker-compose.yml

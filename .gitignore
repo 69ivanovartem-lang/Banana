@@ -1,0 +1,30 @@
+# Бинарные файлы программ и плагинов
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Тестовые бинарники, собранные через `go test -c`
+*.test
+
+# Артефакты покрытия тестов и профилировщики
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Файлы рабочего пространства Go
+go.work
+go.work.sum
+
+# Файлы окружения и секреты
+.env
+*.local
+
+# Системные файлы и IDE
+.DS_Store
+.idea/
+*.iml
+.vscode/
