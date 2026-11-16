@@ -318,6 +318,41 @@ func (s *Store) AddFile(f FileMeta) error {
 	return s.saveLocked()
 }
 
+// TotalUsedBytes — суммарный размер всех файлов пользователя вне корзины.
+// В корзину файлы переносятся без удаления из s.db.Files, поэтому их размеры
+// вычитаются (по снимкам TrashItem). Двойной репликации содержимого при этом нет:
+// сами байты лежат в одном blob-хранилище, корзина хранит только метаданные/архив.
+func (s *Store) TotalUsedBytes(userID string) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var used int64
+	for _, f := range s.db.Files {
+		if f.UserID == userID {
+			used += f.Size
+		}
+	}
+	trashed := make(map[string]bool)
+	for _, it := range s.db.Trash {
+		if it.UserID != userID {
+			continue
+		}
+		if it.SnapshotFile != nil && !trashed[it.SnapshotFile.ID] {
+			trashed[it.SnapshotFile.ID] = true
+			used -= it.SnapshotFile.Size
+		}
+		for _, f := range it.SnapshotFiles {
+			if !trashed[f.ID] {
+				trashed[f.ID] = true
+				used -= f.Size
+			}
+		}
+	}
+	if used < 0 {
+		used = 0
+	}
+	return used
+}
+
 func (s *Store) ListFiles(userID, folderID string) []FileMeta {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

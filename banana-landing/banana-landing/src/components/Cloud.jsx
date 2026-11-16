@@ -1,13 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
-
-const QUOTA = 10 * 1024 * 1024 * 1024; // 10 ГБ
-
-function uid() {
-  return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  folderItems, createFolder, renameFolder, deleteFolder,
+  uploadFile, deleteFile, downloadUrl, previewUrl,
+  listTrash, restoreTrash, purgeTrash, createShare, getFolder, getUsage,
+} from '../api';
 
 function formatBytes(b) {
-  if (!b && b !== 0) return '—';
+  if (b === undefined || b === null) return '—';
   const units = ['Байт', 'КБ', 'МБ', 'ГБ', 'ТБ'];
   let i = 0;
   while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
@@ -15,244 +14,196 @@ function formatBytes(b) {
 }
 
 function formatDate(ts) {
+  if (!ts) return '—';
   const d = new Date(ts);
   return d.toLocaleDateString('ru-RU') + ', ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-function folder(name, parent) {
-  return { id: uid(), name, type: 'folder', parent, size: 0, data: null, created: Date.now() };
-}
-
-// Стартовая структура: Аудитории → группы → общая/личная папки (по ТЗ)
-function seedFS(nickname) {
-  const items = [];
-  const a1 = folder('Аудитория 305', null);
-  const a2 = folder('Аудитория 412', null);
-  items.push(a1, a2);
-  const g1 = folder('Группа ИС-21', a1.id);
-  const g2 = folder('Группа ИС-22', a1.id);
-  const g3 = folder('Группа ИС-31', a2.id);
-  items.push(g1, g2, g3);
-  [g1, g2, g3].forEach((g) => {
-    items.push(folder('Общая папка', g.id));
-    items.push(folder(`Личная папка — ${nickname}`, g.id));
-  });
-  return { items };
-}
-
-function loadFS(key) {
-  try { return JSON.parse(localStorage.getItem(key)) || { items: [] }; }
-  catch { return { items: [] }; }
-}
-
-// Занятое место по ВСЕМУ облаку (все пользователи, без корзины)
-function totalUsed() {
-  let used = 0;
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith('banana_fs_')) {
-      try {
-        const fs = JSON.parse(localStorage.getItem(k)) || { items: [] };
-        fs.items.forEach((it) => {
-          if (it.type === 'file' && it.parent !== 'trash') used += it.size || 0;
-        });
-      } catch { /* ignore */ }
-    }
-  }
-  return used;
-}
-
-function itemIcon(it) {
-  if (it.type === 'folder') return '📁';
-  const ext = it.name.split('.').pop().toLowerCase();
+// Тип файла берём у бэкенда (fileType), иконку — по расширению.
+function fileIcon(it) {
+  const ext = it.name.includes('.') ? it.name.split('.').pop().toLowerCase() : '';
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
   if (['mp4', 'mov', 'avi', 'mkv'].includes(ext)) return '🎬';
   if (['mp3', 'wav', 'ogg', 'flac'].includes(ext)) return '🎵';
   if (['zip', 'rar', '7z', 'tar'].includes(ext)) return '📦';
-  if (['pdf'].includes(ext)) return '📕';
+  if (ext === 'pdf') return '📕';
   if (['doc', 'docx', 'txt', 'rtf', 'md'].includes(ext)) return '📄';
   if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
-  if (['go', 'js', 'jsx', 'py', 'java', 'c', 'cpp', 'html', 'css', 'sql'].includes(ext)) return '💻';
+  if (['go', 'js', 'jsx', 'py', 'java', 'c', 'cpp', 'html', 'css', 'sql', 'ts', 'json', 'sh'].includes(ext)) return '💻';
   return '📃';
 }
 
+const TYPE_LABELS = { image: 'Изображение', video: 'Видео', audio: 'Аудио', document: 'Документ', code: 'Код', archive: 'Архив', other: 'Файл' };
+
 export default function Cloud({ user, onLogout }) {
-  const fsKey = 'banana_fs_' + user.toLowerCase();
-  const [fs, setFs] = useState(() => {
-    if (!localStorage.getItem(fsKey)) {
-      localStorage.setItem(fsKey, JSON.stringify(seedFS(user)));
-    }
-    return loadFS(fsKey);
-  });
-  const [nav, setNav] = useState({ parent: null, view: 'files', search: '' });
-  const [used, setUsed] = useState(totalUsed);
-  const [toast, setToast] = useState(null);
+  // nav.folder — id текущей папки ('' = корень), nav.view — 'files' | 'trash'
+  const [nav, setNav] = useState({ folder: '', view: 'files' });
+  const [items, setItems] = useState({ files: [], folders: [] });
+  const [trail, setTrail] = useState([]); // [{id, name}]
+  const [trash, setTrash] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [toastMsg, setToastMsg] = useState(null);
+  const [uploading, setUploading] = useState(0);
+  const [search, setSearch] = useState('');
+  const [preview, setPreview] = useState(null); // {file, url, type}
+  const [usage, setUsage] = useState(null); // {used, quota, free} — данные бэкенда
   const fileInput = useRef(null);
 
-  useEffect(() => {
-    localStorage.setItem(fsKey, JSON.stringify(fs));
-    setUsed(totalUsed());
-  }, [fs, fsKey]);
+  const toast = (text) => setToastMsg(text);
 
   useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    if (!toastMsg) return;
+    const t = setTimeout(() => setToastMsg(null), 2600);
     return () => clearTimeout(t);
-  }, [toast]);
+  }, [toastMsg]);
 
-  const save = (items) => setFs((prev) => ({ ...prev, items }));
-  const find = (id) => fs.items.find((it) => it.id === id);
-  const nameExists = (parent, name, exceptId) =>
-    fs.items.some((it) => it.parent === parent && it.id !== exceptId && it.name.toLowerCase() === name.toLowerCase());
+  const loadFolder = useCallback(async (folderID) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await folderItems(folderID || 'root');
+      setItems({ files: data.files || [], folders: data.folders || [] });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadTrash = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listTrash();
+      setTrash(data.items || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (nav.view === 'trash') loadTrash();
+    else loadFolder(nav.folder);
+  }, [nav, loadFolder, loadTrash]);
+
+  // Занятое место во всём облаке — с сервера (GET /api/v1/usage)
+  const refreshUsage = useCallback(async () => {
+    try { setUsage(await getUsage()); } catch { /* не критично */ }
+  }, []);
+  useEffect(() => { refreshUsage(); }, [refreshUsage, items, trash]);
+
+  // Хлебные крошки: подтягиваем цепочку родителей через GET /folders/{id}
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!nav.folder) { if (!cancelled) setTrail([]); return; }
+      const chain = [];
+      let cur = nav.folder;
+      for (let i = 0; i < 50 && cur; i++) {
+        try {
+          const f = await getFolder(cur);
+          chain.unshift({ id: f.id, name: f.name });
+          cur = f.parentID;
+        } catch { break; }
+      }
+      if (!cancelled) setTrail(chain);
+    })();
+    return () => { cancelled = true; };
+  }, [nav.folder]);
 
   const inTrash = nav.view === 'trash';
-  const parent = inTrash ? 'trash' : nav.parent;
-  const q = nav.search.trim().toLowerCase();
 
-  const items = fs.items
-    .filter((it) => it.parent === parent && (!q || it.name.toLowerCase().includes(q)))
-    .sort((a, b) => (a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name, 'ru')));
+  const q = search.trim().toLowerCase();
+  const visibleFolders = items.folders.filter((f) => !q || f.name.toLowerCase().includes(q));
+  const visibleFiles = items.files.filter((f) => !q || f.name.toLowerCase().includes(q));
+  const rows = inTrash ? trash : [...visibleFolders.map((f) => ({ ...f, kind: 'folder' })), ...visibleFiles.map((f) => ({ ...f, kind: 'file' }))];
 
-  // Хлебные крошки
-  const crumbs = [{ name: '🍌 Моё облако', id: null }];
-  if (inTrash) {
-    crumbs.push({ name: 'Корзина', id: 'trash' });
-  } else {
-    let cur = nav.parent, guard = 0;
-    const chain = [];
-    while (cur && guard < 50) {
-      const it = find(cur);
-      if (!it) break;
-      chain.unshift({ name: it.name, id: it.id });
-      cur = it.parent;
-      guard++;
-    }
-    crumbs.push(...chain);
+  // Занятое место берём с бэкенда (GET /usage); если ещё не загрузилось — показываем прочерк
+  const used = usage ? usage.used : null;
+  const quota = usage ? usage.quota : 0;
+  const pct = usage && quota > 0 ? Math.min(100, (used / quota) * 100).toFixed(2) : '0';
+
+  async function refresh() {
+    if (inTrash) await loadTrash();
+    else await loadFolder(nav.folder);
   }
 
-  function openFolder(id) {
-    setNav((n) => ({ ...n, parent: id, search: '' }));
-  }
-
-  function createFolder() {
+  async function doCreateFolder() {
     const name = prompt('Название новой папки:', 'Новая папка');
     if (!name || !name.trim()) return;
-    if (nameExists(nav.parent, name.trim())) { setToast('Папка с таким именем уже есть'); return; }
-    save([...fs.items, folder(name.trim(), nav.parent)]);
-    setToast(`Папка «${name.trim()}» создана`);
+    try {
+      await createFolder(name.trim(), nav.folder);
+      toast(`Папка «${name.trim()}» создана`);
+      refresh();
+    } catch (e) { toast(e.message); }
   }
 
-  function uploadFiles(files) {
-    if (!files || !files.length) return;
-    Array.from(files).forEach((f) => {
-      if (used + f.size > QUOTA) { setToast('Не хватает места в облаке'); return; }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const current = loadFS(fsKey);
-        let name = f.name, n = 1;
-        while (current.items.some((it) => it.parent === nav.parent && it.name.toLowerCase() === name.toLowerCase())) {
-          const dot = f.name.lastIndexOf('.');
-          name = dot > 0
-            ? f.name.slice(0, dot) + ` (${n})` + f.name.slice(dot)
-            : `${f.name} (${n})`;
-          n++;
-        }
-        const item = { id: uid(), name, type: 'file', parent: nav.parent, size: f.size, data: reader.result, created: Date.now() };
-        try {
-          localStorage.setItem(fsKey, JSON.stringify({ items: [...current.items, item] }));
-          setFs({ items: [...current.items, item] });
-          setToast('Загружено: ' + name);
-        } catch {
-          setToast('Файл слишком большой для демо-хранилища браузера');
-        }
-      };
-      reader.readAsDataURL(f);
-    });
-    fileInput.current.value = '';
-  }
-
-  function downloadFile(id) {
-    const it = find(id);
-    if (!it || !it.data) return;
-    const a = document.createElement('a');
-    a.href = it.data;
-    a.download = it.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
-
-  function renameItem(id) {
-    const it = find(id);
-    if (!it) return;
+  async function doRename(it) {
     const name = prompt('Новое имя:', it.name);
     if (!name || !name.trim() || name.trim() === it.name) return;
-    if (nameExists(it.parent, name.trim(), it.id)) { setToast('Такое имя уже занято'); return; }
-    save(fs.items.map((x) => (x.id === id ? { ...x, name: name.trim() } : x)));
-    setToast(`Переименовано в «${name.trim()}»`);
+    try {
+      if (it.kind === 'folder') await renameFolder(it.id, name.trim());
+      else toast('Переименование файлов появится вместе со следующим релизом API');
+      refresh();
+    } catch (e) { toast(e.message); }
   }
 
-  // Мягкое удаление: перенос в корзину со всеми вложенными
-  function deleteItem(id) {
-    const toTrash = new Set();
-    (function collect(itemId) {
-      toTrash.add(itemId);
-      fs.items.forEach((ch) => { if (ch.parent === itemId) collect(ch.id); });
-    })(id);
-    save(fs.items.map((x) => toTrash.has(x.id) ? { ...x, prevParent: x.parent, parent: 'trash' } : x));
-    setToast(`«${find(id).name}» перемещено в корзину`);
+  async function doDelete(it) {
+    try {
+      if (it.kind === 'folder') await deleteFolder(it.id);
+      else await deleteFile(it.id);
+      toast(`«${it.name}» перемещено в корзину`);
+      refresh();
+    } catch (e) { toast(e.message); }
   }
 
-  function restoreItem(id) {
-    const it = find(id);
-    if (!it) return;
-    let target = it.prevParent !== undefined && it.prevParent !== 'trash' ? it.prevParent : null;
-    if (target !== null && !find(target)) target = null;
-    const name = nameExists(target, it.name, it.id) ? it.name + ' (восстановлено)' : it.name;
-    save(fs.items.map((x) => {
-      if (x.id === id) { const { prevParent, ...rest } = x; return { ...rest, parent: target, name }; }
-      return x;
-    }));
-    setToast(`«${name}» восстановлено`);
-  }
-
-  function purgeItem(id) {
-    const it = find(id);
-    if (!it) return;
-    if (!window.confirm(`Удалить «${it.name}» навсегда? Это действие нельзя отменить.`)) return;
-    const toRemove = new Set();
-    (function collect(itemId) {
-      toRemove.add(itemId);
-      fs.items.forEach((ch) => { if (ch.parent === itemId) collect(ch.id); });
-    })(id);
-    save(fs.items.filter((x) => !toRemove.has(x.id)));
-    setToast('Удалено навсегда');
-  }
-
-  function emptyTrash() {
-    if (!window.confirm('Очистить корзину полностью?')) return;
-    const trashIds = new Set(fs.items.filter((it) => it.parent === 'trash').map((it) => it.id));
-    let changed = true;
-    while (changed) {
-      changed = false;
-      fs.items.forEach((x) => {
-        if (!trashIds.has(x.id) && trashIds.has(x.parent)) { trashIds.add(x.id); changed = true; }
-      });
+  async function doUpload(files) {
+    if (!files || !files.length) return;
+    setUploading(files.length);
+    let done = 0;
+    for (const f of Array.from(files)) {
+      try {
+        await uploadFile(f, nav.folder);
+      } catch (e) {
+        toast(`${f.name}: ${e.message}`);
+      }
+      done++;
+      setUploading(files.length - done);
     }
-    save(fs.items.filter((x) => !trashIds.has(x.id)));
-    setToast('Корзина очищена');
+    toast('Загрузка завершена');
+    if (fileInput.current) fileInput.current.value = '';
+    refresh();
   }
 
-  const pct = Math.min(100, (used / QUOTA) * 100).toFixed(2);
+  async function doShare(it) {
+    try {
+      const link = await createShare(it.kind, it.id);
+      const root = window.location.origin;
+      const url = root + '/api/v1/share/' + link.token;
+      navigator.clipboard?.writeText(url).catch(() => {});
+      toast('Ссылка на «' + it.name + '» скопирована: ' + url);
+    } catch (e) { toast(e.message); }
+  }
+
+  function openPreview(f) {
+    setPreview({ file: f, url: previewUrl(f.id), type: f.fileType, contentType: f.contentType });
+  }
+
+  const crumbs = [{ name: '🍌 Моё облако', id: '' }];
+  if (inTrash) crumbs.push({ name: 'Корзина', id: 'trash' });
+  else crumbs.push(...trail);
 
   return (
     <div className="cloud">
-      <div className="cloud-toast" style={{ opacity: toast ? 1 : 0, transform: toast ? 'translate(-50%,0)' : 'translate(-50%,20px)' }}>
-        {toast}
+      <div className="cloud-toast" style={{ opacity: toastMsg ? 1 : 0, transform: toastMsg ? 'translate(-50%,0)' : 'translate(-50%,20px)' }}>
+        {toastMsg}
       </div>
 
       <div className="cloud-top">
-        <span className="logo" style={{ cursor: 'pointer' }} onClick={() => setNav({ parent: null, view: 'files', search: '' })}>
+        <span className="logo" style={{ cursor: 'pointer' }} onClick={() => setNav({ folder: '', view: 'files' })}>
           <span className="dot">B</span> BANANA
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -266,18 +217,18 @@ export default function Cloud({ user, onLogout }) {
 
       <div className="cloud-body">
         <aside className="cloud-side">
-          <button className={'side-link' + (nav.view === 'files' ? ' active' : '')}
-            onClick={() => setNav({ parent: null, view: 'files', search: '' })}>
+          <button className={'side-link' + (!inTrash ? ' active' : '')}
+            onClick={() => { setNav({ folder: '', view: 'files' }); setSearch(''); }}>
             <span>📂</span><span className="txt">Файлы</span>
           </button>
-          <button className={'side-link' + (nav.view === 'trash' ? ' active' : '')}
-            onClick={() => setNav({ parent: null, view: 'trash', search: '' })}>
+          <button className={'side-link' + (inTrash ? ' active' : '')}
+            onClick={() => { setNav((n) => ({ ...n, view: 'trash' })); setSearch(''); }}>
             <span>🗑️</span><span className="txt">Корзина</span>
           </button>
           <div className="storage-box">
             <div className="lbl">Занято в облаке</div>
             <div className="storage-bar"><div className="fill" style={{ width: pct + '%' }}></div></div>
-            <div className="val">{formatBytes(used)} из {formatBytes(QUOTA)}</div>
+            <div className="val">{used === null ? '—' : formatBytes(used) + ' из ' + formatBytes(quota)}</div>
           </div>
         </aside>
 
@@ -285,61 +236,80 @@ export default function Cloud({ user, onLogout }) {
           <div className="cloud-toolbar">
             <div className="breadcrumb">
               {crumbs.map((c, i) => (
-                <span key={i} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                <span key={c.id || 'root'} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                   {i > 0 && <span className="sep">/</span>}
                   <a className={i === crumbs.length - 1 ? 'current' : ''}
-                    onClick={() => (i === crumbs.length - 1 ? null : c.id === 'trash' ? setNav({ parent: null, view: 'trash', search: '' }) : openFolder(c.id))}>
+                    onClick={() => {
+                      if (i === crumbs.length - 1 || c.id === 'trash') return;
+                      setNav({ folder: c.id, view: 'files' });
+                      setSearch('');
+                    }}>
                     {c.name}
                   </a>
                 </span>
               ))}
             </div>
             <div className="toolbar-actions">
-              <input type="text" className="search-input" placeholder="🔍 Поиск…" value={nav.search}
-                onChange={(e) => setNav((n) => ({ ...n, search: e.target.value }))} />
-              {!inTrash && <button className="btn btn-ghost btn-sm" onClick={createFolder}>📁 + Создать папку</button>}
-              {!inTrash && <button className="btn btn-accent btn-sm" onClick={() => fileInput.current.click()}>⬆️ Загрузить файл</button>}
-              {inTrash && <button className="btn btn-danger btn-sm" onClick={emptyTrash}>Очистить корзину</button>}
-              <input type="file" ref={fileInput} multiple hidden onChange={(e) => uploadFiles(e.target.files)} />
+              {!inTrash && <input type="text" className="search-input" placeholder="🔍 Поиск…" value={search}
+                onChange={(e) => setSearch(e.target.value)} />}
+              {!inTrash && <button className="btn btn-ghost btn-sm" onClick={doCreateFolder}>📁 + Создать папку</button>}
+              {!inTrash && <button className="btn btn-accent btn-sm" onClick={() => fileInput.current.click()} disabled={!!uploading}>
+                {uploading ? `⬆️ Загрузка… (${uploading})` : '⬆️ Загрузить файл'}
+              </button>}
+              <input type="file" ref={fileInput} multiple hidden onChange={(e) => doUpload(e.target.files)} />
             </div>
           </div>
 
-          {items.length === 0 ? (
+          {error && <div className="empty-state"><div className="big">⚠️</div><div>{error}</div></div>}
+
+          {!error && loading && (
+            <div className="empty-state"><div className="big">🍌</div><div>Загрузка…</div></div>
+          )}
+
+          {!error && !loading && rows.length === 0 && (
             <div className="empty-state">
               <div className="big">{q ? '🔍' : inTrash ? '🗑️' : '🍌'}</div>
-              <div>{q ? `Ничего не найдено по запросу «${nav.search}»` : inTrash ? 'Корзина пуста' : 'Папка пуста. Создай папку или загрузи файл!'}</div>
+              <div>{q ? `Ничего не найдено по запросу «${search}»` : inTrash ? 'Корзина пуста' : 'Папка пуста. Создай папку или загрузи файл!'}</div>
             </div>
-          ) : (
+          )}
+
+          {!error && !loading && rows.length > 0 && (
             <div>
               <div className="file-row head">
                 <div>Имя</div><div>Размер</div><div>Изменён</div><div style={{ textAlign: 'right' }}>Действия</div>
               </div>
-              {items.map((it) => (
+              {rows.map((it) => (
                 <div className="file-row" key={it.id}>
                   <div className="file-name"
-                    onClick={() => it.type === 'folder' && !inTrash && openFolder(it.id)}
-                    onDoubleClick={() => it.type === 'folder' && !inTrash && openFolder(it.id)}>
-                    <span className="file-ico">{itemIcon(it)}</span>
-                    <span className="fname">{it.name}</span>
+                    onClick={() => it.kind === 'folder' && !inTrash && setNav({ folder: it.id, view: 'files' })}>
+                    <span className="file-ico">{inTrash ? (it.type === 'folder' ? '📁' : '📃') : it.kind === 'folder' ? '📁' : fileIcon(it)}</span>
+                    <span className="fname">{inTrash ? it.originalName : it.name}</span>
+                    {!inTrash && it.kind === 'file' && it.fileType && (
+                      <span style={{ marginLeft: 8, opacity: 0.5, fontSize: 12 }} title={TYPE_LABELS[it.fileType] || it.fileType}>
+                        {TYPE_LABELS[it.fileType] || it.fileType}
+                      </span>
+                    )}
                   </div>
-                  <div className="file-size">{it.type === 'folder' ? '—' : formatBytes(it.size)}</div>
-                  <div className="file-date">{formatDate(it.created)}</div>
+                  <div className="file-size">{it.kind === 'folder' && !inTrash ? '—' : formatBytes(it.size)}</div>
+                  <div className="file-date">{formatDate(inTrash ? it.deletedAt : (it.updatedAt || it.createdAt))}</div>
                   <div className="file-actions">
                     {inTrash ? (
                       <>
-                        <button className="icon-btn" onClick={() => restoreItem(it.id)}>♻️ Восстановить</button>
-                        <button className="icon-btn danger" onClick={() => purgeItem(it.id)}>✖</button>
+                        <button className="icon-btn" onClick={async () => { try { await restoreTrash(it.id); toast('Восстановлено'); refresh(); } catch (e) { toast(e.message); } }}>♻️ Восстановить</button>
+                        <button className="icon-btn danger" onClick={async () => { if (!confirm('Удалить навсегда?')) return; try { await purgeTrash(it.id); toast('Удалено навсегда'); refresh(); } catch (e) { toast(e.message); } }}>✖</button>
                       </>
-                    ) : it.type === 'folder' ? (
+                    ) : it.kind === 'folder' ? (
                       <>
-                        <button className="icon-btn" onClick={() => renameItem(it.id)}>✏️</button>
-                        <button className="icon-btn danger" onClick={() => deleteItem(it.id)}>🗑️</button>
+                        <button className="icon-btn" onClick={() => doRename(it)}>✏️</button>
+                        <button className="icon-btn" onClick={() => doShare(it)}>🔗</button>
+                        <button className="icon-btn danger" onClick={() => doDelete(it)}>🗑️</button>
                       </>
                     ) : (
                       <>
-                        <button className="icon-btn" onClick={() => downloadFile(it.id)}>⬇️</button>
-                        <button className="icon-btn" onClick={() => renameItem(it.id)}>✏️</button>
-                        <button className="icon-btn danger" onClick={() => deleteItem(it.id)}>🗑️</button>
+                        <button className="icon-btn" onClick={() => openPreview(it)}>👁️</button>
+                        <a className="icon-btn" href={downloadUrl(it.id)} download={it.name}>⬇️</a>
+                        <button className="icon-btn" onClick={() => doShare(it)}>🔗</button>
+                        <button className="icon-btn danger" onClick={() => doDelete(it)}>🗑️</button>
                       </>
                     )}
                   </div>
@@ -349,6 +319,45 @@ export default function Cloud({ user, onLogout }) {
           )}
         </main>
       </div>
+
+      {preview && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }} onClick={() => setPreview(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: '#101010', border: '1px solid rgba(255,255,255,.12)', borderRadius: 16,
+            maxWidth: '90vw', maxHeight: '90vh', overflow: 'auto', padding: 20, width: 860, color: '#fff',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <strong>{preview.file.name}</strong>
+              <button className="btn btn-ghost btn-sm" onClick={() => setPreview(null)}>✖ Закрыть</button>
+            </div>
+            {preview.type === 'image' && <img src={preview.url} alt={preview.file.name} style={{ maxWidth: '100%' }} />}
+            {preview.type === 'video' && <video src={preview.url} controls style={{ width: '100%' }} />}
+            {preview.type === 'audio' && <audio src={preview.url} controls style={{ width: '100%' }} />}
+            {preview.type === 'code' && <CodeView url={preview.url} />}
+            {preview.type === 'document' && <iframe src={preview.url} title={preview.file.name} style={{ width: '100%', height: '70vh', border: 0 }} />}
+            {!['image', 'video', 'audio', 'code', 'document'].includes(preview.type) && (
+              <div style={{ textAlign: 'center', padding: 24 }}>
+                Предпросмотр недоступен для этого типа.<br />
+                <a className="btn btn-accent" href={downloadUrl(preview.file.id)} download={preview.file.name} style={{ marginTop: 12, display: 'inline-block' }}>⬇️ Скачать</a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+// Текстовый предпросмотр кода/txt — тянем содержимое через preview URL
+function CodeView({ url }) {
+  const [text, setText] = useState('Загрузка…');
+  useEffect(() => {
+    let cancelled = false;
+    fetch(url).then((r) => r.text()).then((t) => { if (!cancelled) setText(t.slice(0, 200000)); }).catch(() => !cancelled && setText('Не удалось загрузить содержимое'));
+    return () => { cancelled = true; };
+  }, [url]);
+  return <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'Consolas, monospace', fontSize: 13, maxHeight: '70vh', overflow: 'auto' }}>{text}</pre>;
 }
