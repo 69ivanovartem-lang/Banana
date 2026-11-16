@@ -97,6 +97,17 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case p == "/api/v1/files" && m == "POST":
 		rt.hUploadFile(w, r)
 
+		
+		
+	case p == "/api/v1/uploads/init" && m == "POST":
+    	handleChunkInit(store)(w, r)
+	case p == "/api/v1/uploads/part" && m == "POST":
+    	handleChunkPart(store)(w, r)
+	case p == "/api/v1/uploads/complete" && m == "POST":
+    	handleChunkComplete(store)(w, r)
+
+
+		
 	case p == "/api/v1/trash" && m == "GET":
 		rt.hListTrash(w, r)
 
