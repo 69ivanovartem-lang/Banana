@@ -9,7 +9,6 @@ services:
       BANANA_DATA_DIR: "/data"
       BANANA_QUOTA_SIZE: "1073741824"
       BANANA_MAX_UPLOAD_SIZE: "104857600"
-      BANANA_FRONTEND_ORIGIN: "*"
     volumes:
       - banana-data:/data
     ports:
@@ -21,6 +20,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      API_ORIGIN: "http://backend:8080"
     ports:
       - "80:80"
 

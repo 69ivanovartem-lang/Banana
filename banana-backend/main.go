@@ -32,11 +32,13 @@ type router struct {
 	hAccessShare   http.HandlerFunc
 	hShareDownload http.HandlerFunc
 	hDeleteShare   http.HandlerFunc
+	hUsage         http.HandlerFunc
 }
 
-func newRouter(s *Store, maxUpload int64) *router {
+func newRouter(s *Store, maxUpload int64, quota int64) *router {
 	rt := &router{}
 	auth := func(h http.HandlerFunc) http.HandlerFunc { return requireAuth(s, h) }
+
 	rt.hRegister = handleRegister(s)
 	rt.hLogin = handleLogin(s)
 	rt.hLogout = handleLogout(s)
@@ -60,6 +62,8 @@ func newRouter(s *Store, maxUpload int64) *router {
 	rt.hAccessShare = handleAccessSharedResource(s)
 	rt.hShareDownload = handleDownloadSharedFile(s)
 	rt.hDeleteShare = auth(handleDeleteShareLink(s))
+	rt.hUsage = auth(handleUsage(s, quota))
+
 	return rt
 }
 
@@ -73,30 +77,35 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	api := len(parts) > 2 && parts[0] == "api" && parts[1] == "v1"
 
 	switch {
-	case p == "/" && m == "GET":
-		handleIndex(w, r)
-	case p == "/favicon.ico":
-		w.WriteHeader(http.StatusNoContent)
 	case p == "/healthz" && m == "GET":
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+
 	case p == "/api/v1/auth/register" && m == "POST":
 		rt.hRegister(w, r)
 	case p == "/api/v1/auth/login" && m == "POST":
 		rt.hLogin(w, r)
 	case p == "/api/v1/auth/logout" && m == "POST":
 		rt.hLogout(w, r)
+
 	case p == "/api/v1/folders" && m == "POST":
 		rt.hCreateFolder(w, r)
 	case p == "/api/v1/folders" && m == "GET":
 		rt.hListFolders(w, r)
+
 	case p == "/api/v1/files" && m == "GET":
 		rt.hListFiles(w, r)
 	case p == "/api/v1/files" && m == "POST":
 		rt.hUploadFile(w, r)
+
 	case p == "/api/v1/trash" && m == "GET":
 		rt.hListTrash(w, r)
+
 	case p == "/api/v1/share" && m == "POST":
 		rt.hCreateShare(w, r)
+
+	case p == "/api/v1/usage" && m == "GET":
+		rt.hUsage(w, r)
+
 	case api && len(parts) == 5 && parts[2] == "files" && parts[4] == "preview" && m == "GET":
 		r.SetPathValue("id", parts[3])
 		rt.hPreviewFile(w, r)
@@ -115,6 +124,7 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case api && len(parts) == 5 && parts[2] == "share" && parts[4] == "download" && m == "GET":
 		r.SetPathValue("token", parts[3])
 		rt.hShareDownload(w, r)
+
 	case api && len(parts) == 4 && parts[2] == "folders":
 		r.SetPathValue("id", parts[3])
 		switch m {
@@ -127,6 +137,7 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
+
 	case api && len(parts) == 4 && parts[2] == "files":
 		r.SetPathValue("id", parts[3])
 		switch m {
@@ -137,15 +148,22 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
+
 	case api && len(parts) == 4 && parts[2] == "trash" && m == "DELETE":
 		r.SetPathValue("id", parts[3])
 		rt.hDeleteTrash(w, r)
+
 	case api && len(parts) == 4 && parts[2] == "share" && m == "GET":
 		r.SetPathValue("token", parts[3])
 		rt.hAccessShare(w, r)
 	case api && len(parts) == 4 && parts[2] == "share" && m == "DELETE":
 		r.SetPathValue("id", parts[3])
 		rt.hDeleteShare(w, r)
+
+	// всё, что не API — собранный React (index.html + /assets/*)
+	case !api && (m == "GET" || m == "HEAD"):
+		handleStatic(w, r)
+
 	default:
 		writeError(w, http.StatusNotFound, "not found: "+m+" "+p)
 	}
@@ -154,18 +172,21 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func main() {
 	dataDir := getEnv("BANANA_DATA_DIR", "./data")
 	port := getEnv("BANANA_PORT", "8080")
-	addr := getEnv("BANANA_ADDR", "192.168.133.20") // доступно всей локальной сети
+	addr := getEnv("BANANA_ADDR", "0.0.0.0")
 	maxUploadBytes := getEnvInt64("BANANA_MAX_UPLOAD_SIZE", 100<<20)
+	quotaBytes := getEnvInt64("BANANA_QUOTA_SIZE", 1<<30) // 1 GiB на пользователя
 
 	store, err := NewStore(dataDir)
 	if err != nil {
 		slog.Error("failed to init store", "error", err)
 		os.Exit(1)
 	}
-	rt := newRouter(store, maxUploadBytes)
+
+	rt := newRouter(store, maxUploadBytes, quotaBytes)
 	handler := fullLogMiddleware(corsMiddleware(rt))
 
-	slog.Info("Banana API started", "addr", addr+":"+port, "dataDir", dataDir)
+	slog.Info("Banana started", "addr", addr+":"+port, "dataDir", dataDir, "webDir", webDir())
+
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, a := range addrs {
 			if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
@@ -173,6 +194,7 @@ func main() {
 			}
 		}
 	}
+
 	if err := http.ListenAndServe(addr+":"+port, handler); err != nil {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)

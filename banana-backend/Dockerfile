@@ -11,6 +11,5 @@ COPY --from=build /banana /app/banana
 ENV BANANA_ADDR=0.0.0.0 \
     BANANA_PORT=8080 \
     BANANA_DATA_DIR=/data
-VOLUME /data
 EXPOSE 8080
 CMD ["/app/banana"]
