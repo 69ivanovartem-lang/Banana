@@ -1,19 +1,26 @@
 services:
   backend:
-    build: ./backend
+    build: ./banana-backend
+    container_name: banana-backend
     restart: unless-stopped
     environment:
+      BANANA_ADDR: "0.0.0.0"
+      BANANA_PORT: "8080"
+      BANANA_DATA_DIR: "/data"
       BANANA_QUOTA_SIZE: "1073741824"
       BANANA_MAX_UPLOAD_SIZE: "104857600"
+      BANANA_FRONTEND_ORIGIN: "*"
     volumes:
       - banana-data:/data
     ports:
       - "8080:8080"
 
   frontend:
-    build: ./frontend
+    build: ./banana-landing
+    container_name: banana-landing
     restart: unless-stopped
-    depends_on: [backend]
+    depends_on:
+      - backend
     ports:
       - "80:80"
 
