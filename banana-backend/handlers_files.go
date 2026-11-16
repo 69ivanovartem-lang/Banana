@@ -45,6 +45,27 @@ func handleListFiles(store *Store) http.HandlerFunc {
 	}
 }
 
+// handleUsage — сколько байт занято во всём облаке пользователя
+// (все файлы вне корзины) и какая это доля от квоты.
+func handleUsage(store *Store, quota int64) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := userIDFromContext(r.Context())
+		used := store.TotalUsedBytes(userID)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"used":  used,
+			"quota": quota,
+			"free":  max64(quota-used, 0),
+		})
+	}
+}
+
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func handleUploadFile(store *Store, maxUpload int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())

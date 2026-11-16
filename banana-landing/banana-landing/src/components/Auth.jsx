@@ -1,48 +1,25 @@
 import { useState } from 'react';
+import { register, login, setSession } from '../api';
 
-const USERS_KEY = 'banana_users';
-const SESSION_KEY = 'banana_session';
-const MIN_PASSWORD = 8;
-const MIN_NICKNAME = 3;
-
-// Демо-хэш пароля. На настоящем бэкенде пароль хэшируется
-// через bcrypt/argon2 — здесь только чтобы не хранить его открытым текстом.
-function hashPassword(str) {
-  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-  for (let i = 0; i < str.length; i++) {
-    const ch = str.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16);
-}
-
-function getUsers() {
-  try {
-    return JSON.parse(localStorage.getItem(USERS_KEY)) || {};
-  } catch {
-    return {};
-  }
-}
+const MIN_PASSWORD = 6; // столько же требует Go-бэкенд (/api/v1/auth/register)
 
 export default function Auth({ mode, setMode, onSuccess }) {
-  const [form, setForm] = useState({ nickname: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '', remember: true });
   const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
   const isRegister = mode === 'register';
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
-    const nickname = form.nickname.trim();
+    const email = form.email.trim();
     const password = form.password;
 
-    if (!nickname || !password) {
+    if (!email || !password) {
       setMsg({ type: 'err', text: 'Заполните все поля' });
       return;
     }
-    if (nickname.length < MIN_NICKNAME) {
-      setMsg({ type: 'err', text: `Никнейм должен быть не короче ${MIN_NICKNAME} символов` });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setMsg({ type: 'err', text: 'Введите корректный email' });
       return;
     }
     if (password.length < MIN_PASSWORD) {
@@ -50,30 +27,28 @@ export default function Auth({ mode, setMode, onSuccess }) {
       return;
     }
 
-    const users = getUsers();
-
-    if (isRegister) {
-      if (users[nickname.toLowerCase()]) {
-        setMsg({ type: 'err', text: 'Такой никнейм уже занят — придумай другой' });
-        return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      if (isRegister) {
+        await register(email, password);
+        // после регистрации сразу логинимся — бэкенд выдаёт токен сессии
+        const s = await login(email, password);
+        setSession(s.token, email, form.remember);
+        if (onSuccess) onSuccess(email);
+      } else {
+        const s = await login(email, password);
+        setSession(s.token, email, form.remember);
+        setMsg({ type: 'ok', text: 'С возвращением! 🍌' });
+        if (onSuccess) setTimeout(() => onSuccess(email), 350);
       }
-      users[nickname.toLowerCase()] = { nickname, passwordHash: hashPassword(password), createdAt: Date.now() };
-      localStorage.setItem(USERS_KEY, JSON.stringify(users));
-      localStorage.setItem(SESSION_KEY, nickname);
-      if (onSuccess) onSuccess(nickname);
-      return;
-    } else {
-      const user = users[nickname.toLowerCase()];
-      if (!user) {
-        setMsg({ type: 'err', text: 'Пользователь с таким никнеймом не найден' });
-        return;
-      }
-      if (user.passwordHash !== hashPassword(password)) {
-        setMsg({ type: 'err', text: 'Неверный пароль' });
-        return;
-      }
-      localStorage.setItem(SESSION_KEY, user.nickname);
-      setMsg({ type: 'ok', text: `С возвращением, ${user.nickname}! 🍌` });
+    } catch (err) {
+      let text = err.message || 'Не удалось выполнить запрос';
+      if (isRegister && err.status === 409) text = 'Такой email уже зарегистрирован — войдите';
+      if (!isRegister && err.status === 401) text = 'Неверный email или пароль';
+      setMsg({ type: 'err', text });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -87,7 +62,7 @@ export default function Auth({ mode, setMode, onSuccess }) {
     <section className="section" id="auth">
       <h2 className="section-title" style={{ textAlign: 'center' }}>Начни прямо <span className="y">сейчас</span></h2>
       <p className="section-sub" style={{ textAlign: 'center', margin: '0 auto 48px' }}>
-        Зарегистрируйся по никнейму и получи 10 ГБ облачного пространства бесплатно.
+        Зарегистрируйся по email и получи 10 ГБ облачного пространства бесплатно.
       </p>
       <div className="auth-wrap">
         <div className="tabs">
@@ -96,17 +71,23 @@ export default function Auth({ mode, setMode, onSuccess }) {
         </div>
         <form onSubmit={submit}>
           <div className="field">
-            <label>Никнейм</label>
-            <input type="text" placeholder="banan_king" value={form.nickname}
-              onChange={(e) => setForm({ ...form, nickname: e.target.value })} />
+            <label>Email</label>
+            <input type="email" placeholder="you@example.com" value={form.email} autoComplete="email"
+              onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </div>
           <div className="field">
             <label>Пароль (минимум {MIN_PASSWORD} символов)</label>
             <input type="password" placeholder="••••••••" value={form.password}
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
               onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
-          <button className="btn btn-accent btn-block" type="submit">
-            {isRegister ? 'Создать аккаунт' : 'Войти'}
+          <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.remember} style={{ width: 'auto' }}
+              onChange={(e) => setForm({ ...form, remember: e.target.checked })} />
+            <span>Запомнить меня</span>
+          </label>
+          <button className="btn btn-accent btn-block" type="submit" disabled={busy}>
+            {busy ? 'Подождите…' : isRegister ? 'Создать аккаунт' : 'Войти'}
           </button>
         </form>
         {msg && <div className={'auth-msg ' + msg.type}>{msg.text}</div>}
