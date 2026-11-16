@@ -1,19 +1,28 @@
-# Этап 1: сборка
-FROM golang:1.23-alpine AS builder
-WORKDIR /src
-COPY go.mod ./
-COPY go.sum* ./
-RUN go mod download || true
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /banana-server .
+# ---------- сборка фронта ----------
+FROM node:20-alpine AS web
+WORKDIR /web
+COPY package*.json ./
+RUN npm install --no-audit --no-fund
+COPY index.html vite.config.js ./
+COPY src ./src
+RUN npm run build
 
-# Этап 2: лёгкий образ
+# ---------- сборка бэка ----------
+FROM golang:1.24-alpine AS api
+WORKDIR /src
+COPY *.go ./
+RUN go mod init banana && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /banana .
+
+# ---------- итог ----------
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
-COPY --from=builder /banana-server ./banana-server
-COPY --from=builder /src/index.html* ./
-ENV BANANA_DATA_DIR=/app/data BANANA_ADDR=0.0.0.0 BANANA_PORT=8080
+COPY --from=api /banana /app/banana
+COPY --from=web /web/dist /app/web
+ENV BANANA_ADDR=0.0.0.0 \
+    BANANA_PORT=8080 \
+    BANANA_DATA_DIR=/data \
+    BANANA_WEB_DIR=/app/web
+VOLUME /data
 EXPOSE 8080
-VOLUME ["/app/data"]
-CMD ["./banana-server"]
+CMD ["/app/banana"]
