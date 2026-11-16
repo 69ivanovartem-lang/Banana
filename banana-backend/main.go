@@ -32,9 +32,10 @@ type router struct {
 	hAccessShare   http.HandlerFunc
 	hShareDownload http.HandlerFunc
 	hDeleteShare   http.HandlerFunc
+	hUsage         http.HandlerFunc
 }
 
-func newRouter(s *Store, maxUpload int64) *router {
+func newRouter(s *Store, maxUpload int64, quota int64) *router {
 	rt := &router{}
 	auth := func(h http.HandlerFunc) http.HandlerFunc { return requireAuth(s, h) }
 	rt.hRegister = handleRegister(s)
@@ -60,6 +61,7 @@ func newRouter(s *Store, maxUpload int64) *router {
 	rt.hAccessShare = handleAccessSharedResource(s)
 	rt.hShareDownload = handleDownloadSharedFile(s)
 	rt.hDeleteShare = auth(handleDeleteShareLink(s))
+	rt.hUsage = auth(handleUsage(s, quota))
 	return rt
 }
 
@@ -97,6 +99,8 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rt.hListTrash(w, r)
 	case p == "/api/v1/share" && m == "POST":
 		rt.hCreateShare(w, r)
+	case p == "/api/v1/usage" && m == "GET":
+		rt.hUsage(w, r)
 	case api && len(parts) == 5 && parts[2] == "files" && parts[4] == "preview" && m == "GET":
 		r.SetPathValue("id", parts[3])
 		rt.hPreviewFile(w, r)
@@ -156,13 +160,14 @@ func main() {
 	port := getEnv("BANANA_PORT", "8080")
 	addr := getEnv("BANANA_ADDR", "192.168.133.20") // доступно всей локальной сети
 	maxUploadBytes := getEnvInt64("BANANA_MAX_UPLOAD_SIZE", 100<<20)
+	quotaBytes := getEnvInt64("BANANA_QUOTA_SIZE", 1<<30) // 1 GiB на пользователя
 
 	store, err := NewStore(dataDir)
 	if err != nil {
 		slog.Error("failed to init store", "error", err)
 		os.Exit(1)
 	}
-	rt := newRouter(store, maxUploadBytes)
+	rt := newRouter(store, maxUploadBytes, quotaBytes)
 	handler := fullLogMiddleware(corsMiddleware(rt))
 
 	slog.Info("Banana API started", "addr", addr+":"+port, "dataDir", dataDir)

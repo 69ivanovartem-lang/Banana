@@ -2,10 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   folderItems, createFolder, renameFolder, deleteFolder,
   uploadFile, deleteFile, downloadUrl, previewUrl,
-  listTrash, restoreTrash, purgeTrash, createShare, getFolder,
+  listTrash, restoreTrash, purgeTrash, createShare, getFolder, getUsage,
 } from '../api';
-
-const QUOTA = 10 * 1024 * 1024 * 1024; // 10 ГБ
 
 function formatBytes(b) {
   if (b === undefined || b === null) return '—';
@@ -49,6 +47,7 @@ export default function Cloud({ user, onLogout }) {
   const [uploading, setUploading] = useState(0);
   const [search, setSearch] = useState('');
   const [preview, setPreview] = useState(null); // {file, url, type}
+  const [usage, setUsage] = useState(null); // {used, quota, free} — данные бэкенда
   const fileInput = useRef(null);
 
   const toast = (text) => setToastMsg(text);
@@ -90,6 +89,12 @@ export default function Cloud({ user, onLogout }) {
     else loadFolder(nav.folder);
   }, [nav, loadFolder, loadTrash]);
 
+  // Занятое место во всём облаке — с сервера (GET /api/v1/usage)
+  const refreshUsage = useCallback(async () => {
+    try { setUsage(await getUsage()); } catch { /* не критично */ }
+  }, []);
+  useEffect(() => { refreshUsage(); }, [refreshUsage, items, trash]);
+
   // Хлебные крошки: подтягиваем цепочку родителей через GET /folders/{id}
   useEffect(() => {
     let cancelled = false;
@@ -116,11 +121,10 @@ export default function Cloud({ user, onLogout }) {
   const visibleFiles = items.files.filter((f) => !q || f.name.toLowerCase().includes(q));
   const rows = inTrash ? trash : [...visibleFolders.map((f) => ({ ...f, kind: 'folder' })), ...visibleFiles.map((f) => ({ ...f, kind: 'file' }))];
 
-  // сколько занято в видимой части облака (данные бэкенда: size/folderStats)
-  const folderSum = items.folders.reduce((s, f) => s + (f.size || 0), 0);
-  const filesSum = items.files.reduce((s, f) => s + (f.size || 0), 0);
-  const used = folderSum + filesSum;
-  const pct = Math.min(100, (used / QUOTA) * 100).toFixed(2);
+  // Занятое место берём с бэкенда (GET /usage); если ещё не загрузилось — показываем прочерк
+  const used = usage ? usage.used : null;
+  const quota = usage ? usage.quota : 0;
+  const pct = usage && quota > 0 ? Math.min(100, (used / quota) * 100).toFixed(2) : '0';
 
   async function refresh() {
     if (inTrash) await loadTrash();
@@ -222,9 +226,9 @@ export default function Cloud({ user, onLogout }) {
             <span>🗑️</span><span className="txt">Корзина</span>
           </button>
           <div className="storage-box">
-            <div className="lbl">Занято в этой папке</div>
+            <div className="lbl">Занято в облаке</div>
             <div className="storage-bar"><div className="fill" style={{ width: pct + '%' }}></div></div>
-            <div className="val">{formatBytes(used)} из {formatBytes(QUOTA)}</div>
+            <div className="val">{used === null ? '—' : formatBytes(used) + ' из ' + formatBytes(quota)}</div>
           </div>
         </aside>
 
