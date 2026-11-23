@@ -1,6 +1,6 @@
 services:
   backend:
-    build: ./banana-backend
+    build: .
     container_name: banana-backend
     restart: unless-stopped
     environment:
@@ -15,7 +15,7 @@ services:
       - "8080:8080"
 
   frontend:
-    build: ./banana-landing
+    build: ../banana-landing
     container_name: banana-landing
     restart: unless-stopped
     depends_on:
