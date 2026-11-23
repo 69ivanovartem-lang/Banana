@@ -13,7 +13,6 @@ type UsageResponse struct {
 func handleUsage(store *Store, quota int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userIDFromContext(r.Context())
-
 		var used int64
 		var fileCount int
 
