@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: banana-storage
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+  - job_name: banana-api          # если добавил metrics.go в Go
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
