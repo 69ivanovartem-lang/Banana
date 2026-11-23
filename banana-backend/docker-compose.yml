@@ -24,27 +24,28 @@ services:
       API_ORIGIN: "http://backend:8080"
     ports:
       - "80:80"
-  
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
     restart: unless-stopped
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      # ВАЖНО: монтируем ПАПКУ, а не файл. Это решает ошибку доступа.
+      - ./prometheus-config:/etc/prometheus
       - prometheus-data:/prometheus
     ports:
-      - "9090:9090" # Порт для веб-интерфейса Prometheus
+      - "9090:9090"
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
     ports:
-      - "3000:3000" # Порт для веб-интерфейса Grafana
+      - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin # Пароль для входа (логин admin)
+      - GF_SECURITY_ADMIN_PASSWORD=admin
 
 volumes:
   banana-data:
