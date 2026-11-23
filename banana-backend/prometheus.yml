@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'banana-backend'
+    static_configs:
+      # 'backend' — это имя сервиса из вашего docker-compose.yml
+      - targets: ['backend:8080']
