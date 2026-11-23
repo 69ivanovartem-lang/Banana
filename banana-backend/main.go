@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type router struct {
@@ -72,6 +74,12 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p == "" {
 		p = "/"
 	}
+	// === БЛОК ДЛЯ PROMETHEUS ===
+	if p == "/metrics" && r.Method == "GET" {
+		promhttp.Handler().ServeHTTP(w, r)
+		return
+	}
+	// ===========================
 	parts := strings.Split(strings.Trim(p, "/"), "/")
 	m := r.Method
 	api := len(parts) > 2 && parts[0] == "api" && parts[1] == "v1"
