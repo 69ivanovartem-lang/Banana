@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus/promhttp" // <-- ДОБАВЛЕН ИМПОРТ
 )
 
 type router struct {
@@ -74,12 +74,14 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p == "" {
 		p = "/"
 	}
-	// === БЛОК ДЛЯ PROMETHEUS ===
+
+	// === ОБРАБОТКА МЕТРИК PROMETHEUS ===
 	if p == "/metrics" && r.Method == "GET" {
 		promhttp.Handler().ServeHTTP(w, r)
 		return
 	}
-	// ===========================
+	// ===================================
+
 	parts := strings.Split(strings.Trim(p, "/"), "/")
 	m := r.Method
 	api := len(parts) > 2 && parts[0] == "api" && parts[1] == "v1"
@@ -178,6 +180,11 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// === НАСТРОЙКА JSON ЛОГОВ (для Loki) ===
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+	// =======================================
+
 	dataDir := getEnv("BANANA_DATA_DIR", "./data")
 	port := getEnv("BANANA_PORT", "8080")
 	addr := getEnv("BANANA_ADDR", "0.0.0.0")
@@ -191,7 +198,9 @@ func main() {
 	}
 
 	rt := newRouter(store, maxUploadBytes, quotaBytes)
-	handler := fullLogMiddleware(corsMiddleware(rt))
+	// === ПОДКЛЮЧАЕМ МЕТРИКИ ===
+	handler := fullLogMiddleware(corsMiddleware(metricsMiddleware(rt)))
+	// ==========================
 
 	slog.Info("Banana started", "addr", addr+":"+port, "dataDir", dataDir, "webDir", webDir())
 
