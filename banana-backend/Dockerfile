@@ -1,19 +1,25 @@
-# Этап 1: сборка
-FROM golang:1.24-alpine AS builder
-WORKDIR /src
-COPY go.mod ./
-COPY go.sum* ./
-RUN go mod download || true
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /banana-server .
+# Этап 1: Сборка
+FROM golang:1.26-alpine AS builder
 
-# Этап 2: лёгкий образ
-FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
-COPY --from=builder /banana-server ./banana-server
-COPY --from=builder /src/index.html* ./
-ENV BANANA_DATA_DIR=/app/data BANANA_ADDR=0.0.0.0 BANANA_PORT=8080
+
+# Копируем файлы модуля и скачиваем зависимости
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Копируем весь исходный код и собираем бинарник
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/banana-backend
+
+# Этап 2: Запуск
+FROM alpine:latest
+WORKDIR /app
+
+# Копируем бинарник из этапа сборки
+COPY --from=builder /app/banana-backend .
+
+# Открываем порт
 EXPOSE 8080
-VOLUME ["/app/data"]
-CMD ["./banana-server"]
+
+# Запускаем сервер
+CMD ["./banana-backend"]
