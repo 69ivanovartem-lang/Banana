@@ -29,6 +29,7 @@ services:
     image: prom/prometheus:latest
     container_name: prometheus
     restart: unless-stopped
+    user: root
     volumes:
       # ВАЖНО: монтируем ПАПКУ, а не файл. Это решает ошибку доступа.
       - ./prometheus-config:/etc/prometheus
