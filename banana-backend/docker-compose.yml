@@ -1,16 +1,29 @@
 services:
-  banana:
-    build: .
-    container_name: banana-cloud
+  backend:
+    build: ./banana-backend
+    container_name: banana-backend
     restart: unless-stopped
+    environment:
+      BANANA_ADDR: "0.0.0.0"
+      BANANA_PORT: "8080"
+      BANANA_DATA_DIR: "/data"
+      BANANA_QUOTA_SIZE: "1073741824"
+      BANANA_MAX_UPLOAD_SIZE: "104857600"
+    volumes:
+      - banana-data:/data
     ports:
       - "8080:8080"
+
+  frontend:
+    build: ./banana-landing
+    container_name: banana-landing
+    restart: unless-stopped
+    depends_on:
+      - backend
     environment:
-      BANANA_DATA_DIR: /app/data
-      BANANA_ADDR: 0.0.0.0
-      BANANA_PORT: "8080"
-    volumes:
-      - banana-data:/app/data
+      API_ORIGIN: "http://backend:8080"
+    ports:
+      - "80:80"
 
 volumes:
   banana-data:

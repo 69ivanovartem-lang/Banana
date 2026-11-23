@@ -1,11 +1,11 @@
 # Этап 1: сборка
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 WORKDIR /src
 COPY go.mod ./
 COPY go.sum* ./
 RUN go mod download || true
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /banana-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /banana-server .
 
 # Этап 2: лёгкий образ
 FROM alpine:3.20
